@@ -18,8 +18,11 @@ import (
 const (
 	SCREEN_WIDTH  = 320
 	SCREEN_HEIGHT = 240
+	RENDER_WIDTH  = 640
+	RENDER_HEIGHT = 480
 	TILE_SIZE     = 16
 	PLAYER_SPEED  = 2
+	BULLET_SPEED  = 2.5
 )
 
 var BULLET_SPRITE *ebiten.Image = GetSpriteByID(115)
@@ -86,15 +89,19 @@ func CheckCollisionY(pos *Position, delta *Delta) float64 {
 	return -1
 }
 
-func CalculateOrientationRads(pos *Position) float64 {
+func AbsoluteCursorPosition(camera *Camera) (int, int) {
 	cursorX, cursorY := ebiten.CursorPosition()
-	return math.Atan2(float64(cursorX)-pos.X, float64(cursorY)-pos.Y) + math.Pi
+	return cursorX+int(camera.Offset.X), cursorY+int(camera.Offset.Y)
 }
 
-func CalculateOrientationAngle(pos *Position) int {
-	radians := CalculateOrientationRads(pos)
+func CalculateOrientationRads(camera *Camera, pos *Position) float64 {
+	cursorX, cursorY := AbsoluteCursorPosition(camera)
+	return math.Atan2(float64(cursorY)-pos.Y, float64(cursorX)-pos.X)
+}
+
+func CalculateOrientationAngle(camera *Camera, pos *Position) int {
+	radians := CalculateOrientationRads(camera, pos)
 	angle := radians * (180 / math.Pi)
-	// Adding a 90 degree offset to get 0 degrees to the right
 	return int(angle+360) % 360
 }
 
@@ -115,13 +122,19 @@ func (g *Game) Update() error {
 
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) {
 		current_pos := g.Player.Position
-
-		// TODO
-		rotation := float32(90)
-		speed := float32(1)
+		rotation := CalculateOrientationRads(&g.Camera, &g.Player.Position)
+		speed := float32(BULLET_SPEED)
 
 		g.Client.SendShoot(Bullet{current_pos, rotation, speed})
 	}
+	
+       for i, bullet := range g.Client.bullets {
+               x := math.Cos(bullet.Rotation)
+               y := math.Sin(bullet.Rotation)
+
+               g.Client.bullets[i].Position.X += x * float64(bullet.Speed)
+               g.Client.bullets[i].Position.Y += y * float64(bullet.Speed)
+       }
 
 	return nil
 
@@ -241,7 +254,7 @@ func main() {
 	level := Level{}
 	LoadLevel(&level)
 
-	ebiten.SetWindowSize(640, 480)
+	ebiten.SetWindowSize(RENDER_WIDTH, RENDER_HEIGHT)
 	ebiten.SetWindowTitle("Hello, World!")
 
 	client := Client{}

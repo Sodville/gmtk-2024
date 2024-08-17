@@ -27,7 +27,7 @@ type Client struct {
 
 type Bullet struct {
 	Position Position
-	Rotation float32
+	Rotation float64
 	Speed    float32
 }
 
