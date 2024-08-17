@@ -89,17 +89,17 @@ func CheckCollisionY(pos *Position, delta *Delta) float64 {
 	return -1
 }
 
-func AbsoluteCursorPosition(camera *Camera) (int, int) {
+func AbsoluteCursorPosition(camera Camera) (int, int) {
 	cursorX, cursorY := ebiten.CursorPosition()
-	return cursorX+int(camera.Offset.X), cursorY+int(camera.Offset.Y)
+	return cursorX + int(camera.Offset.X), cursorY + int(camera.Offset.Y)
 }
 
-func CalculateOrientationRads(camera *Camera, pos *Position) float64 {
+func CalculateOrientationRads(camera Camera, pos Position) float64 {
 	cursorX, cursorY := AbsoluteCursorPosition(camera)
 	return math.Atan2(float64(cursorY)-pos.Y, float64(cursorX)-pos.X)
 }
 
-func CalculateOrientationAngle(camera *Camera, pos *Position) int {
+func CalculateOrientationAngle(camera Camera, pos Position) int {
 	radians := CalculateOrientationRads(camera, pos)
 	angle := radians * (180 / math.Pi)
 	return int(angle+360) % 360
@@ -122,19 +122,19 @@ func (g *Game) Update() error {
 
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) {
 		current_pos := g.Player.Position
-		rotation := CalculateOrientationRads(&g.Camera, &g.Player.Position)
+		rotation := CalculateOrientationRads(g.Camera, g.Player.GetCenter())
 		speed := float32(BULLET_SPEED)
 
 		g.Client.SendShoot(Bullet{current_pos, rotation, speed})
 	}
-	
-       for i, bullet := range g.Client.bullets {
-               x := math.Cos(bullet.Rotation)
-               y := math.Sin(bullet.Rotation)
 
-               g.Client.bullets[i].Position.X += x * float64(bullet.Speed)
-               g.Client.bullets[i].Position.Y += y * float64(bullet.Speed)
-       }
+	for i, bullet := range g.Client.bullets {
+		x := math.Cos(bullet.Rotation)
+		y := math.Sin(bullet.Rotation)
+
+		g.Client.bullets[i].Position.X += x * float64(bullet.Speed)
+		g.Client.bullets[i].Position.Y += y * float64(bullet.Speed)
+	}
 
 	return nil
 
@@ -174,6 +174,7 @@ func (p *Player) Update(game *Game) {
 			player_pos.X = collided_object.X + collided_object.Width
 		}
 	}
+
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
 		player_pos.X += p.Speed
 		collided_object := game.CheckObjectCollision(*player_pos)
@@ -182,6 +183,13 @@ func (p *Player) Update(game *Game) {
 		}
 	}
 
+}
+
+func (p *Player) GetCenter() Position {
+	return Position{
+		p.Position.X + float64(p.Sprite.Bounds().Dx())/2,
+		p.Position.Y + float64(p.Sprite.Bounds().Dy())/2,
+	}
 }
 
 func (c *Camera) Update(target_pos Position) {
@@ -199,10 +207,10 @@ func (c *Camera) GetCameraDrawOptions() *ebiten.DrawImageOptions {
 
 func (g *Game) CheckObjectCollision(position Position) *tiled.Object {
 	for _, object := range g.Level.Collisions {
-		if (object.X < position.X+TILE_SIZE &&
-		object.X+object.Width > position.X &&
-		object.Y < position.Y+TILE_SIZE &&
-		object.Y+object.Height > position.Y) {
+		if object.X < position.X+TILE_SIZE &&
+			object.X+object.Width > position.X &&
+			object.Y < position.Y+TILE_SIZE &&
+			object.Y+object.Height > position.Y {
 			return object
 		}
 	}
