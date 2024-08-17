@@ -42,6 +42,7 @@ type Level struct {
 	MapImage   *ebiten.Image
 	Map        *tiled.Map
 	Collisions []*tiled.Object
+	Spawn      *tiled.Object
 }
 
 type Camera struct {
@@ -104,7 +105,7 @@ func (g *Game) Update() error {
 		g.Client.SendPosition(g.Player.Position)
 	}
 
-	g.Player.Update()
+	g.Player.Update(g)
 
 	camera_target_pos := Position{g.Player.Position.X - SCREEN_WIDTH/2, g.Player.Position.Y - SCREEN_HEIGHT/2}
 	g.Camera.Update(camera_target_pos)
@@ -134,43 +135,40 @@ func (p *Player) Draw(screen *ebiten.Image, camera Camera) {
 	screen.DrawImage(p.Sprite, op)
 }
 
-func (p *Player) Update() {
-	var delta Delta
+func (p *Player) Update(game *Game) {
+	player_pos := &p.Position
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		delta.dY -= p.Speed
+		player_pos.Y -= p.Speed
+		collided_object := game.CheckObjectCollision(*player_pos)
+		if collided_object != nil {
+			player_pos.Y = collided_object.Y + collided_object.Height
+		}
 	}
+
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		delta.dY += p.Speed
+		player_pos.Y += p.Speed
+		collided_object := game.CheckObjectCollision(*player_pos)
+		if collided_object != nil {
+			player_pos.Y = collided_object.Y - TILE_SIZE
+		}
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		delta.dX -= p.Speed
+		player_pos.X -= p.Speed
+		collided_object := game.CheckObjectCollision(*player_pos)
+		if collided_object != nil {
+			player_pos.X = collided_object.X + collided_object.Width
+		}
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		delta.dX += p.Speed
+		player_pos.X += p.Speed
+		collided_object := game.CheckObjectCollision(*player_pos)
+		if collided_object != nil {
+			player_pos.X = collided_object.X - TILE_SIZE
+		}
 	}
 
-	if delta.dX != 0 && delta.dY != 0 {
-		factor := p.Speed / math.Sqrt(delta.dX*delta.dX+delta.dY*delta.dY)
-		delta.dX *= factor
-		delta.dY *= factor
-	}
-
-	collX := CheckCollisionX(&p.Position, &delta)
-	if collX != -1 {
-		p.Position.X = collX
-	} else {
-		p.Position.X += delta.dX
-	}
-
-	collY := CheckCollisionY(&p.Position, &delta)
-	if collY != -1 {
-		p.Position.Y = collY
-	} else {
-		p.Position.Y += delta.dY
-
-	}
 }
 
 func (c *Camera) Update(target_pos Position) {
@@ -184,6 +182,19 @@ func (c *Camera) GetCameraDrawOptions() *ebiten.DrawImageOptions {
 	op.GeoM.Translate(-c.Offset.X, -c.Offset.Y)
 
 	return &op
+}
+
+func (g *Game) CheckObjectCollision(position Position) *tiled.Object {
+	for _, object := range g.Level.Collisions {
+		if (object.X < position.X+TILE_SIZE &&
+		object.X+object.Width > position.X &&
+		object.Y < position.Y+TILE_SIZE &&
+		object.Y+object.Height > position.Y) {
+			return object
+		}
+	}
+
+	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -247,6 +258,10 @@ func main() {
 
 	game := Game{Player: Player{Speed: PLAYER_SPEED, Position: Position{1, 1}, Sprite: player_sprite}, Client: &client, Level: &level}
 
+	if game.Level.Spawn != nil {
+		game.Player.Position = Position{game.Level.Spawn.X, game.Level.Spawn.Y}
+	}
+
 	if err := ebiten.RunGame(&game); err != nil {
 		log.Fatal(err)
 	}
@@ -285,6 +300,16 @@ func LoadLevel(level *Level) {
 	for _, object_group := range level.Map.ObjectGroups {
 		if object_group.Name == "Collision" {
 			level.Collisions = object_group.Objects
+		}
+	}
+
+	for _, object_group := range level.Map.ObjectGroups {
+		if object_group.Name == "Misc" {
+			for _, object := range object_group.Objects {
+				if object.Name == "player_spawn" {
+					level.Spawn = object
+				}
+			}
 		}
 	}
 }

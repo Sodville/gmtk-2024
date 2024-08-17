@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="16" tileheight="16" infinite="0" nextlayerid="7" nextobjectid="40">
+<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="32" height="20" tilewidth="16" tileheight="16" infinite="0" nextlayerid="8" nextobjectid="41">
  <tileset firstgid="1" source="sampleSheet.tsx"/>
  <layer id="1" name="Dungeon" width="32" height="20">
   <data encoding="csv">
@@ -25,6 +25,9 @@
 1,26,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,28
 </data>
  </layer>
+ <objectgroup id="7" name="Misc">
+  <object id="40" name="player_spawn" x="124.5" y="148" width="36" height="28"/>
+ </objectgroup>
  <objectgroup id="6" name="Collision">
   <object id="1" x="499" y="0" width="12.5" height="218"/>
   <object id="4" x="380.5" y="0" width="118" height="43.5"/>
