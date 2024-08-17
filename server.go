@@ -11,6 +11,9 @@ import (
 type ConnectedPlayer struct {
 	Addr     net.UDPAddr
 	Position Position
+
+	// currently does not work
+	ID uint
 }
 
 type Server struct {
@@ -128,9 +131,13 @@ func (s *Server) Host(mediation_server_ip string) {
 			case PacketTypeMatchConnect:
 				var new_connection net.UDPAddr
 				err = dec.Decode(&new_connection)
+
+				new_player := ConnectedPlayer{new_connection, Position{}, uint(len(s.connections)) + 1}
+				s.AddConnection(new_connection.String(), new_player)
+
 				packet = Packet{}
 				packet.PacketType = PacketTypeNegotiate
-				data = ReconcilliationData{"Hey other client!"}
+				data := new_player.ID
 
 				raw_data, err := SerializePacket(packet, data)
 				if err != nil {
@@ -142,8 +149,7 @@ func (s *Server) Host(mediation_server_ip string) {
 					fmt.Println("something went wrong when reaching out to match", err)
 				}
 
-				s.AddConnection(new_connection.String(), ConnectedPlayer{new_connection, Position{}})
-				fmt.Println("got new connection")
+				fmt.Println("got new connection with id ", data)
 				fmt.Println("connections: ", s.connections)
 
 			case PacketTypeNegotiate:
@@ -155,7 +161,12 @@ func (s *Server) Host(mediation_server_ip string) {
 
 				// therefore we can safely assume that the incomming packet is from the owner we want to connect with
 				// and then we can set the owner of the packet to our desired target address to assert the case
-				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{packet_data.Addr, Position{}})
+				for _, key := range s.connection_keys {
+					if packet_data.Addr.String() == key {
+						break
+					}
+				}
+				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{packet_data.Addr, Position{}, uint(len(s.connections)) + 1})
 
 				fmt.Println(packet_data.Packet, inner_data)
 			case PacketTypePositition:

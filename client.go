@@ -5,6 +5,8 @@ import (
 	"encoding/gob"
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -18,6 +20,20 @@ type Client struct {
 	packet_channel chan PacketData
 	connections    []ConnectedPlayer
 	is_connected   bool
+
+	ID uint
+}
+
+func (c *Client) IsSelf(addr net.UDPAddr) bool {
+	split_strings := strings.Split(c.conn.LocalAddr().String(), ":")
+
+	port, _ := strconv.Atoi(split_strings[len(split_strings)-1])
+
+	if addr.Port == port {
+		return true
+	}
+
+	return false
 }
 
 func (c *Client) listen() {
@@ -123,16 +139,10 @@ func (c *Client) HandlePacket() {
 			}
 
 		case PacketTypeNegotiate:
-			var inner_data ReconcilliationData
+			_ = dec.Decode(&c.ID)
 
-			// if we get this packet there is a presumption that we have already
-			// broken through the NAT address by sending a packet to said address.
-
-			// therefore we can safely assume that the incomming packet is from the owner we want to connect with
-			// and then we can set the owner of the packet to our desired target address to assert the case
 			c.host_addr = packet_data.Addr
-
-			fmt.Println(packet_data.Packet, inner_data)
+			fmt.Println(c.ID)
 		case PacketTypePositition:
 			var position_data CoordinateData
 			_ = dec.Decode(&position_data)

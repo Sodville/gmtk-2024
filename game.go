@@ -68,7 +68,6 @@ func (g *Game) Update() error {
 	if ebiten.IsKeyPressed(ebiten.KeyQ) {
 		return ebiten.Termination
 	}
-
 	return nil
 }
 
@@ -122,6 +121,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.Player.Draw(screen)
 
 	for _, connection := range g.Client.connections {
+		if g.Client.IsSelf(connection.Addr) {
+			continue
+		}
 		vector.DrawFilledCircle(screen, float32(connection.Position.X), float32(connection.Position.Y), 15, color.White, false)
 	}
 }
