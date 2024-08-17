@@ -35,6 +35,12 @@ type Game struct {
 }
 
 func CheckCollision(pos Position) bool {
+	if pos.X >= SCREEN_WIDTH || pos.X < 0 {
+		return true
+	}
+	if pos.Y >= SCREEN_HEIGHT || pos.Y < 0 {
+		return true
+	}
 	return false
 }
 
@@ -75,7 +81,7 @@ func (p *Player) Draw(screen *ebiten.Image) {
 
 func (p *Player) Update() {
 	player_pos := &p.Position
-	init_player_pos := player_pos
+	init_player_pos := *player_pos
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		player_pos.Y -= p.Speed
