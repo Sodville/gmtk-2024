@@ -10,10 +10,10 @@ import (
 
 type Server struct {
 	mediation_server net.UDPAddr
-	conn           *net.UDPConn
-	connections    map[*net.UDPAddr]net.UDPAddr
-	packet_channel chan PacketData
-	started bool
+	conn             *net.UDPConn
+	connections      map[*net.UDPAddr]net.UDPAddr
+	packet_channel   chan PacketData
+	started          bool
 }
 
 func (s *Server) listen() {
@@ -86,10 +86,11 @@ func (s *Server) Host(mediation_server_ip string) {
 			if err != nil {
 				fmt.Println("something went wrong when reaching out to match", err)
 			}
-			if s.started { return }
+			if s.started {
+				return
+			}
 		}
 	}()
-
 
 	for {
 		select {
@@ -145,4 +146,3 @@ func (s *Server) Host(mediation_server_ip string) {
 		}
 	}
 }
-

@@ -13,7 +13,7 @@ const MEDIATION_SERVERPORT = 8080
 
 type Client struct {
 	conn           *net.UDPConn
-	host_addr     net.UDPAddr
+	host_addr      net.UDPAddr
 	other_pos      CoordinateData
 	packet_channel chan PacketData
 }
