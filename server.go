@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"maps"
 	"net"
 	"time"
-	"maps"
 )
 
 type ConnectedPlayer struct {
