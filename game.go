@@ -22,6 +22,8 @@ const (
 	PLAYER_SPEED  = 2
 )
 
+var BULLET_SPRITE *ebiten.Image = GetSpriteByID(115)
+
 type Position struct {
 	X, Y float64
 }
@@ -97,7 +99,19 @@ func (g *Game) Update() error {
 	if ebiten.IsKeyPressed(ebiten.KeyQ) {
 		return ebiten.Termination
 	}
+
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) {
+		current_pos := g.Player.Position
+
+		// TODO
+		rotation := float32(90)
+		speed := float32(1)
+
+		g.Client.SendShoot(Bullet{current_pos, rotation, speed})
+	}
+
 	return nil
+
 }
 
 func (p *Player) Draw(screen *ebiten.Image, camera Camera) {
@@ -176,6 +190,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		op := g.Camera.GetCameraDrawOptions()
 		op.GeoM.Translate(connection.Position.X, connection.Position.Y)
 		screen.DrawImage(g.Player.Sprite, op)
+	}
+
+	for _, bullet := range g.Client.bullets {
+		op := g.Camera.GetCameraDrawOptions()
+		op.GeoM.Translate(bullet.Position.X, bullet.Position.Y)
+		screen.DrawImage(BULLET_SPRITE, op)
 	}
 }
 

@@ -19,9 +19,16 @@ type Client struct {
 	other_pos      CoordinateData
 	packet_channel chan PacketData
 	connections    []ConnectedPlayer
+	bullets		   []Bullet
 	is_connected   bool
 
 	ID uint
+}
+
+type Bullet struct {
+	Position Position
+	Rotation float32
+	Speed float32
 }
 
 func (c *Client) IsSelf(addr net.UDPAddr) bool {
@@ -34,6 +41,18 @@ func (c *Client) IsSelf(addr net.UDPAddr) bool {
 	}
 
 	return false
+}
+
+func (c *Client) SendShoot(bullet Bullet) {
+	packet := Packet{}
+	packet.PacketType = PacketTypeBulletStart
+
+	raw_data, err := SerializePacket(packet, bullet)
+	if err != nil {
+		fmt.Println("error serializing bullet packet", err)
+	}
+
+	c.conn.WriteToUDP(raw_data, &c.host_addr)
 }
 
 func (c *Client) listen() {
@@ -131,6 +150,16 @@ func (c *Client) HandlePacket() {
 			}
 
 			c.is_connected = true
+		case PacketTypeBulletStart:
+			var bullet Bullet
+			err := dec.Decode(&bullet)
+
+			if err != nil {
+				fmt.Println("something went wrong decoding bullet", err)
+			}
+
+			c.bullets = append(c.bullets, bullet)
+
 		case PacketTypeUpdatePlayers:
 			err := dec.Decode(&c.connections)
 

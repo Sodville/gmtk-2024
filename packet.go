@@ -48,6 +48,7 @@ const (
 	PacketTypeDisconnect
 	PacketTypePositition
 	PacketTypeUpdatePlayers
+	PacketTypeBulletStart
 )
 
 type NegotiationResponse struct {
@@ -68,7 +69,11 @@ func ValidatePacket(packet Packet) error {
 
 func DeserializePacket(data []byte) (Packet, []byte, error) {
 	var packet Packet
-	r := bytes.NewReader(data)
+
+	buf := make([]byte, 2048)
+	_ = copy(buf, data)
+
+	r := bytes.NewReader(buf)
 
 	err := binary.Read(r, binary.BigEndian, &packet.PacketType)
 	if err != nil {
@@ -112,7 +117,7 @@ func DeserializePacket(data []byte) (Packet, []byte, error) {
 		return packet, nil, err
 	}
 
-	rawData := data[packet.HeaderSize:packet.TotalSize]
+	rawData := buf[packet.HeaderSize:packet.TotalSize]
 	return packet, rawData, nil
 }
 

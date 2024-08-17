@@ -7,6 +7,7 @@ import (
 	"maps"
 	"net"
 	"time"
+	"sync"
 )
 
 type ConnectedPlayer struct {
@@ -24,10 +25,11 @@ type Server struct {
 	connections      map[string]ConnectedPlayer
 	packet_channel   chan PacketData
 	started          bool
+	packet_channel_mutex sync.Mutex
 }
 
 func (s *Server) listen() {
-	buf := make([]byte, 1024)
+	buf := make([]byte, 2048)
 	for {
 		n, addr, err := s.conn.ReadFromUDP(buf)
 		if err != nil {
@@ -128,6 +130,7 @@ func (s *Server) Host(mediation_server_ip string) {
 	for {
 		select {
 		case packet_data := <-s.packet_channel:
+			s.packet_channel_mutex.Lock()
 			dec := gob.NewDecoder(bytes.NewReader(packet_data.Data))
 			switch packet_data.Packet.PacketType {
 			case PacketTypeMatchConnect:
@@ -169,6 +172,7 @@ func (s *Server) Host(mediation_server_ip string) {
 					}
 				}
 				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{packet_data.Addr, Position{}, uint(len(s.connections)) + 1})
+
 			case PacketTypePositition:
 				var position Position
 				err = dec.Decode(&position)
@@ -181,8 +185,12 @@ func (s *Server) Host(mediation_server_ip string) {
 				player := s.connections[packet_data.Addr.String()]
 				player.Position = position
 				s.connections[packet_data.Addr.String()] = player
-			}
 
+			case PacketTypeBulletStart:
+				var bullet Bullet
+				dec.Decode(&bullet)
+				s.Broadcast(packet_data.Packet, bullet)
+			}
 		case <-time.After(5 * time.Second):
 			packet = Packet{}
 			packet.PacketType = PacketTypeKeepAlive
@@ -195,5 +203,6 @@ func (s *Server) Host(mediation_server_ip string) {
 				fmt.Println("something went wrong when reaching out to match", err)
 			}
 		}
+		s.packet_channel_mutex.Unlock()
 	}
 }
