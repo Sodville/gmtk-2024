@@ -136,6 +136,25 @@ func (g *Game) Update() error {
 		g.Client.bullets[i].Position.Y += y * float64(bullet.Speed)
 	}
 
+	bullets := []Bullet{}
+	for i, bullet := range g.Client.bullets {
+		radians := bullet.Rotation
+		x := math.Cos(radians)
+		y := math.Sin(radians)
+
+		bullet.Position.X += x * float64(bullet.Speed)
+		bullet.Position.Y += y * float64(bullet.Speed)
+
+		collision_object := g.CheckObjectCollision(g.Client.bullets[i].Position)
+		if collision_object != nil {
+			// do cool
+		} else {
+			bullets = append(bullets, bullet)
+		}
+	}
+
+	g.Client.bullets = bullets
+
 	return nil
 
 }
