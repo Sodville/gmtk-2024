@@ -143,11 +143,6 @@ func (c *Client) HandlePacket() {
 
 			c.host_addr = packet_data.Addr
 			fmt.Println(c.ID)
-		case PacketTypePositition:
-			var position_data CoordinateData
-			_ = dec.Decode(&position_data)
-
-			c.other_pos = position_data
 		}
 
 	case <-time.After(5 * time.Second):

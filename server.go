@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"time"
+	"maps"
 )
 
 type ConnectedPlayer struct {
@@ -44,7 +45,8 @@ func (s *Server) listen() {
 }
 
 func (s *Server) Broadcast(packet Packet, data any) {
-	for _, value := range s.connections {
+	connections := maps.Clone(s.connections)
+	for _, value := range connections {
 		raw_data, err := SerializePacket(packet, data)
 		if err != nil {
 			fmt.Println("error serializing packet in Broadcast", err)
@@ -108,7 +110,7 @@ func (s *Server) Host(mediation_server_ip string) {
 
 	go func() {
 		for {
-			time.Sleep(time.Millisecond * 36)
+			time.Sleep(time.Millisecond * 20)
 
 			packet = Packet{}
 			packet.PacketType = PacketTypeUpdatePlayers
@@ -167,16 +169,15 @@ func (s *Server) Host(mediation_server_ip string) {
 					}
 				}
 				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{packet_data.Addr, Position{}, uint(len(s.connections)) + 1})
-
-				fmt.Println(packet_data.Packet, inner_data)
 			case PacketTypePositition:
 				var position Position
 				err = dec.Decode(&position)
 				if err != nil {
 					fmt.Println("error decoding position: ", err)
+					fmt.Println("packet: ", packet_data.Packet)
+					fmt.Println("packet: ", packet_data.Data)
+					continue
 				}
-
-				fmt.Println(packet_data.Addr.String(), position)
 				player := s.connections[packet_data.Addr.String()]
 				player.Position = position
 				s.connections[packet_data.Addr.String()] = player

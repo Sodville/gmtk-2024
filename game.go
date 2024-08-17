@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"image/color"
+	"image/png"
 	"log"
 	"math"
+
+	"github.com/lafriks/go-tiled"
+	"github.com/lafriks/go-tiled/render"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -16,6 +21,7 @@ const (
 	SCREEN_WIDTH  = 320
 	SCREEN_HEIGHT = 240
 	TILE_SIZE     = 16
+	PLAYER_SPEED  = 2
 )
 
 type Position struct {
@@ -29,12 +35,24 @@ type Delta struct {
 type Player struct {
 	Position Position
 	Speed    float64
+	Sprite   *ebiten.Image
+}
+
+type Level struct {
+	MapImage *ebiten.Image
+	Map *tiled.Map
+}
+
+type Camera struct {
+	Offset Position
 }
 
 type Game struct {
 	Player     Player
 	Client     *Client
 	FrameCount uint64
+	Level      *Level
+	Camera     Camera
 }
 
 func CheckCollisionX(pos *Position, delta *Delta) float64 {
@@ -60,19 +78,26 @@ func CheckCollisionY(pos *Position, delta *Delta) float64 {
 func (g *Game) Update() error {
 	g.FrameCount++
 
-	if g.Client.is_connected {
+	if g.Client.is_connected && (g.FrameCount % 3 == 0) {
 		g.Client.SendPosition(g.Player.Position)
 	}
 
 	g.Player.Update()
+
+	camera_target_pos := Position{g.Player.Position.X - SCREEN_WIDTH / 2 , g.Player.Position.Y - SCREEN_HEIGHT / 2}
+	g.Camera.Update(camera_target_pos)
 	if ebiten.IsKeyPressed(ebiten.KeyQ) {
 		return ebiten.Termination
 	}
 	return nil
 }
 
-func (p *Player) Draw(screen *ebiten.Image) {
-	vector.DrawFilledCircle(screen, float32(p.Position.X), float32(p.Position.Y), 15, color.White, false)
+func (p *Player) Draw(screen *ebiten.Image, camera Camera) {
+	op := camera.GetCameraDrawOptions()
+
+	op.GeoM.Translate(p.Position.X, p.Position.Y)
+
+	screen.DrawImage(p.Sprite, op)
 }
 
 func (p *Player) Update() {
@@ -114,11 +139,27 @@ func (p *Player) Update() {
 	}
 }
 
+func (c *Camera) Update(target_pos Position) {
+	coefficient := 20.0
+	c.Offset.X += (target_pos.X - c.Offset.X) / coefficient
+	c.Offset.Y += (target_pos.Y - c.Offset.Y) / coefficient
+}
+
+func (c *Camera) GetCameraDrawOptions() (*ebiten.DrawImageOptions) {
+	op := ebiten.DrawImageOptions{}
+	op.GeoM.Translate(-c.Offset.X, -c.Offset.Y)
+
+	return &op
+}
+
 func (g *Game) Draw(screen *ebiten.Image) {
+
+	screen.DrawImage(g.Level.MapImage, g.Camera.GetCameraDrawOptions())
+
 	tps := ebiten.ActualTPS()
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("TPS: %f", tps))
 
-	g.Player.Draw(screen)
+	g.Player.Draw(screen, g.Camera)
 
 	for _, connection := range g.Client.connections {
 		if g.Client.IsSelf(connection.Addr) {
@@ -144,6 +185,9 @@ func main() {
 		return
 	}
 
+	level := Level{}
+	LoadLevel(&level)
+
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowTitle("Hello, World!")
 
@@ -157,9 +201,45 @@ func main() {
 		go client.RunLocalClient()
 	}
 
-	game := Game{Player: Player{Speed: TILE_SIZE, Position: Position{1, 1}}, Client: &client}
+	player_sprite, _, err := ebitenutil.NewImageFromFile("assets/Tiles/tile_0098.png")
+
+	if err != nil {
+		panic(err)
+	}
+
+	game := Game{Player: Player{Speed: PLAYER_SPEED, Position: Position{1, 1}, Sprite: player_sprite}, Client: &client, Level: &level }
 
 	if err := ebiten.RunGame(&game); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func LoadLevel(level *Level) {
+	gameMap, err := tiled.LoadFile("assets/Tiled/sampleMap.tmx")
+
+	if err != nil {
+		panic(err)
+	}
+
+	mapRenderer, err := render.NewRenderer(gameMap)
+
+	if err != nil {
+		panic(err)
+	}
+
+	// render it to an in memory image
+	err = mapRenderer.RenderVisibleLayers()
+
+	if err != nil {
+		panic(err)
+	}
+
+	var buff []byte
+	buffer := bytes.NewBuffer(buff)
+
+	mapRenderer.SaveAsPng(buffer)
+
+	im, err := png.Decode(buffer)
+
+	level.MapImage = ebiten.NewImageFromImage(im)
 }
