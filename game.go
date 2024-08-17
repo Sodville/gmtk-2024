@@ -37,14 +37,24 @@ type Game struct {
 	FrameCount uint64
 }
 
-func CheckCollision(pos Position) bool {
-	if pos.X < 1 || pos.X > SCREEN_WIDTH-TILE_SIZE {
-		return true
+func CheckCollisionX(pos *Position, delta *Delta) float64 {
+	if pos.X+delta.dX < 1 {
+		return 1
 	}
-	if pos.Y < 1 || pos.Y > SCREEN_HEIGHT-TILE_SIZE {
-		return true
+	if pos.X+delta.dX > SCREEN_WIDTH-TILE_SIZE {
+		return float64(SCREEN_WIDTH - TILE_SIZE)
 	}
-	return false
+	return -1
+}
+
+func CheckCollisionY(pos *Position, delta *Delta) float64 {
+	if pos.Y+delta.dY < 1 {
+		return 1
+	}
+	if pos.Y+delta.dY > SCREEN_HEIGHT-TILE_SIZE {
+		return float64(SCREEN_HEIGHT - TILE_SIZE)
+	}
+	return -1
 }
 
 func (g *Game) Update() error {
@@ -67,7 +77,6 @@ func (p *Player) Draw(screen *ebiten.Image) {
 }
 
 func (p *Player) Update() {
-	player_pos := &p.Position
 	var delta Delta
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
@@ -76,18 +85,12 @@ func (p *Player) Update() {
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
 		delta.dY += p.Speed
 	}
-	if CheckCollision(*player_pos) {
-		delta.dY = 0
-	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
 		delta.dX -= p.Speed
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
 		delta.dX += p.Speed
-	}
-	if CheckCollision(*player_pos) {
-		delta.dX = 0
 	}
 
 	if delta.dX != 0 && delta.dY != 0 {
@@ -96,8 +99,20 @@ func (p *Player) Update() {
 		delta.dY *= factor
 	}
 
-	p.Position.X += delta.dX
-	p.Position.Y += delta.dY
+	collX := CheckCollisionX(&p.Position, &delta)
+	if collX != -1 {
+		p.Position.X = collX
+	} else {
+		p.Position.X += delta.dX
+	}
+
+	collY := CheckCollisionY(&p.Position, &delta)
+	if collY != -1 {
+		p.Position.Y = collY
+	} else {
+		p.Position.Y += delta.dY
+
+	}
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
