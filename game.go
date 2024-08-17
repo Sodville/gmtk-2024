@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -18,12 +19,16 @@ const (
 )
 
 type Position struct {
-	X, Y int
+	X, Y float64
+}
+
+type Delta struct {
+	dX, dY float64
 }
 
 type Player struct {
 	Position Position
-	Speed    int
+	Speed    float64
 }
 
 type Game struct {
@@ -63,28 +68,36 @@ func (p *Player) Draw(screen *ebiten.Image) {
 
 func (p *Player) Update() {
 	player_pos := &p.Position
-	init_player_pos := *player_pos
+	var delta Delta
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		player_pos.Y -= p.Speed
+		delta.dY -= p.Speed
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		player_pos.Y += p.Speed
+		delta.dY += p.Speed
 	}
-
 	if CheckCollision(*player_pos) {
-		player_pos.Y = init_player_pos.Y
+		delta.dY = 0
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		player_pos.X -= p.Speed
+		delta.dX -= p.Speed
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		player_pos.X += p.Speed
+		delta.dX += p.Speed
 	}
 	if CheckCollision(*player_pos) {
-		player_pos.X = init_player_pos.X
+		delta.dX = 0
 	}
+
+	if delta.dX != 0 && delta.dY != 0 {
+		factor := p.Speed / math.Sqrt(delta.dX*delta.dX+delta.dY*delta.dY)
+		delta.dX *= factor
+		delta.dY *= factor
+	}
+
+	p.Position.X += delta.dX
+	p.Position.Y += delta.dY
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
