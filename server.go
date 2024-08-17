@@ -31,8 +31,8 @@ type Server struct {
 	connections          map[string]ConnectedPlayer
 	packet_channel       chan PacketData
 	started              bool
-	bullets				 []Bullet
-	level				 *Level
+	bullets              []Bullet
+	level                *Level
 	packet_channel_mutex sync.Mutex
 }
 
@@ -81,16 +81,16 @@ func (s *Server) Update() {
 		bullet.Position.Y += y * float64(bullet.Speed)
 
 		collision_object := s.level.CheckObjectCollision(bullet.Position)
-		bullet.GracePeriod = max(0, bullet.GracePeriod - 0.16)
+		bullet.GracePeriod = max(0, bullet.GracePeriod-0.16)
 
 		should_remove := false
 
 		if bullet.GracePeriod == 0 {
 			for _, player := range connections {
-				if (bullet.Position.X < player.Position.X+TILE_SIZE &&
-				bullet.Position.X + 4 > player.Position.X && // 4 is width
-				bullet.Position.Y < player.Position.Y+TILE_SIZE &&
-				bullet.Position.Y + 4 > player.Position.Y) { // 4 is height
+				if bullet.Position.X < player.Position.X+TILE_SIZE &&
+					bullet.Position.X+4 > player.Position.X && // 4 is width
+					bullet.Position.Y < player.Position.Y+TILE_SIZE &&
+					bullet.Position.Y+4 > player.Position.Y { // 4 is height
 					packet := Packet{}
 					packet.PacketType = PacketTypePlayerHit
 
@@ -100,7 +100,9 @@ func (s *Server) Update() {
 			}
 		}
 
-		if collision_object != nil { should_remove = true }
+		if collision_object != nil {
+			should_remove = true
+		}
 
 		if !should_remove {
 			bullets = append(bullets, bullet)

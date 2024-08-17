@@ -27,6 +27,7 @@ const (
 )
 
 type LevelEnum uint
+
 const (
 	LobbyLevel LevelEnum = iota
 	LevelOne
@@ -65,7 +66,7 @@ type Camera struct {
 type Game struct {
 	Player     Player
 	Client     *Client
-	Server	   *Server
+	Server     *Server
 	FrameCount uint64
 	Level      *Level
 	Camera     Camera
@@ -100,7 +101,7 @@ func CalculateOrientationAngle(camera Camera, pos Position) int {
 func (g *Game) Update() error {
 	g.FrameCount++
 
-	if g.Server != nil{
+	if g.Server != nil {
 		g.Server.Update()
 	}
 
@@ -112,11 +113,11 @@ func (g *Game) Update() error {
 
 	targetX := g.Player.Position.X - SCREEN_WIDTH/2
 	targetX = max(0, targetX)
-	targetX = min(float64(g.Level.Map.Width * TILE_SIZE - SCREEN_WIDTH), targetX)
+	targetX = min(float64(g.Level.Map.Width*TILE_SIZE-SCREEN_WIDTH), targetX)
 
 	targetY := g.Player.Position.Y - SCREEN_HEIGHT/2
 	targetY = max(0, targetY)
-	targetY = min(float64(g.Level.Map.Height * TILE_SIZE - SCREEN_HEIGHT), targetY)
+	targetY = min(float64(g.Level.Map.Height*TILE_SIZE-SCREEN_HEIGHT), targetY)
 
 	camera_target_pos := Position{targetX, targetY}
 	g.Camera.Update(camera_target_pos)
@@ -332,21 +333,21 @@ func main() {
 func LoadLevel(level *Level, levelType LevelEnum) {
 	var gameMap *tiled.Map
 	switch levelType {
-		case LobbyLevel:
-			_gameMap, err := tiled.LoadFile("assets/Tiled/sampleMap.tmx")
-			gameMap = _gameMap
+	case LobbyLevel:
+		_gameMap, err := tiled.LoadFile("assets/Tiled/sampleMap.tmx")
+		gameMap = _gameMap
 
-			if err != nil {
-				panic(err)
-			}
-		default:
-			_gameMap, err := tiled.LoadFile(fmt.Sprintf("assets/Tiled/level_%d.tmx", levelType))
-			gameMap = _gameMap
-
-			if err != nil {
-				panic(err)
-			}
+		if err != nil {
+			panic(err)
 		}
+	default:
+		_gameMap, err := tiled.LoadFile(fmt.Sprintf("assets/Tiled/level_%d.tmx", levelType))
+		gameMap = _gameMap
+
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	if gameMap == nil {
 		panic("no gamemap sourced")

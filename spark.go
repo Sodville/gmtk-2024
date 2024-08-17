@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -13,9 +12,9 @@ import (
 type Spark struct {
 	Lifetime float64
 	Position Position
-	Angle int
-	Scale float64
-	Force float64
+	Angle    int
+	Scale    float64
+	Force    float64
 }
 
 func (s *Spark) calculateMovement() (float64, float64) {
@@ -31,7 +30,7 @@ func (s *Spark) Update() {
 	s.Position.X += x
 	s.Position.Y += y
 
-	s.Lifetime = max(0, s.Lifetime - .16)
+	s.Lifetime = max(0, s.Lifetime-.16)
 }
 
 func (s *Spark) Draw(screen *ebiten.Image, camera *Camera) {

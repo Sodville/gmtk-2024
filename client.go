@@ -26,9 +26,9 @@ type Client struct {
 }
 
 type Bullet struct {
-	Position Position
-	Rotation float64
-	Speed    float32
+	Position    Position
+	Rotation    float64
+	Speed       float32
 	GracePeriod float64
 }
 
@@ -173,7 +173,6 @@ func (c *Client) HandlePacket() {
 			if err != nil {
 				fmt.Println("something went wrong when decoding hit info", err)
 			}
-
 
 		case PacketTypeUpdatePlayers:
 			err := dec.Decode(&c.connections)
