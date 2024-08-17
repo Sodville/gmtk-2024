@@ -29,6 +29,7 @@ type Bullet struct {
 	Position Position
 	Rotation float64
 	Speed    float32
+	GracePeriod float64
 }
 
 func (c *Client) IsSelf(addr net.UDPAddr) bool {
@@ -159,6 +160,20 @@ func (c *Client) HandlePacket() {
 			}
 
 			c.bullets = append(c.bullets, bullet)
+
+		case PacketTypePlayerHit:
+			var hitInfo HitInfo
+			err := dec.Decode(&hitInfo)
+
+			if c.IsSelf(hitInfo.Player.Addr) {
+				// reduce health etc.
+				fmt.Println("you git hit!")
+			}
+
+			if err != nil {
+				fmt.Println("something went wrong when decoding hit info", err)
+			}
+
 
 		case PacketTypeUpdatePlayers:
 			err := dec.Decode(&c.connections)

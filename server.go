@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"maps"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -18,6 +19,11 @@ type ConnectedPlayer struct {
 	ID uint
 }
 
+type HitInfo struct {
+	Player ConnectedPlayer
+	Damage int
+}
+
 type Server struct {
 	mediation_server     net.UDPAddr
 	conn                 *net.UDPConn
@@ -25,6 +31,8 @@ type Server struct {
 	connections          map[string]ConnectedPlayer
 	packet_channel       chan PacketData
 	started              bool
+	bullets				 []Bullet
+	level				 *Level
 	packet_channel_mutex sync.Mutex
 }
 
@@ -47,7 +55,8 @@ func (s *Server) listen() {
 }
 
 func (s *Server) Broadcast(packet Packet, data any) {
-	connections := maps.Clone(s.connections)
+	connections := make(map[string]ConnectedPlayer)
+	maps.Copy(connections, s.connections)
 	for _, value := range connections {
 		raw_data, err := SerializePacket(packet, data)
 		if err != nil {
@@ -56,6 +65,48 @@ func (s *Server) Broadcast(packet Packet, data any) {
 
 		s.conn.WriteToUDP(raw_data, &value.Addr)
 	}
+}
+
+func (s *Server) Update() {
+	bullets := []Bullet{}
+	connections := make(map[string]ConnectedPlayer)
+	maps.Copy(connections, s.connections)
+
+	for _, bullet := range s.bullets {
+		radians := bullet.Rotation
+		x := math.Cos(radians)
+		y := math.Sin(radians)
+
+		bullet.Position.X += x * float64(bullet.Speed)
+		bullet.Position.Y += y * float64(bullet.Speed)
+
+		collision_object := s.level.CheckObjectCollision(bullet.Position)
+		bullet.GracePeriod = max(0, bullet.GracePeriod - 0.16)
+
+		should_remove := false
+
+		if bullet.GracePeriod == 0 {
+			for _, player := range connections {
+				if (bullet.Position.X < player.Position.X+TILE_SIZE &&
+				bullet.Position.X + 4 > player.Position.X && // 4 is width
+				bullet.Position.Y < player.Position.Y+TILE_SIZE &&
+				bullet.Position.Y + 4 > player.Position.Y) { // 4 is height
+					packet := Packet{}
+					packet.PacketType = PacketTypePlayerHit
+
+					s.Broadcast(packet, HitInfo{player, 20}) // TODO: fix damage etc.
+					should_remove = true
+				}
+			}
+		}
+
+		if collision_object != nil { should_remove = true }
+
+		if !should_remove {
+			bullets = append(bullets, bullet)
+		}
+	}
+	s.bullets = bullets
 }
 
 func (s *Server) AddConnection(key string, new_connection ConnectedPlayer) {
@@ -190,6 +241,9 @@ func (s *Server) Host(mediation_server_ip string) {
 				var bullet Bullet
 				dec.Decode(&bullet)
 				s.Broadcast(packet_data.Packet, bullet)
+
+				bullet.GracePeriod = 1.5
+				s.bullets = append(s.bullets, bullet)
 			}
 		case <-time.After(5 * time.Second):
 			packet = Packet{}

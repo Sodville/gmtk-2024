@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"image"
 	"image/png"
 	"log"
 	"math"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 const (
@@ -24,6 +26,9 @@ const (
 	PLAYER_SPEED  = 2
 	BULLET_SPEED  = 2.5
 )
+
+var emptyImage = ebiten.NewImage(3, 3)
+var emptySubImage = emptyImage.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)
 
 var BULLET_SPRITE *ebiten.Image = GetSpriteByID(115)
 
@@ -55,9 +60,76 @@ type Camera struct {
 type Game struct {
 	Player     Player
 	Client     *Client
+	Server	   *Server
 	FrameCount uint64
 	Level      *Level
 	Camera     Camera
+	Sparks     []Spark
+}
+
+type Spark struct {
+	Lifetime float64
+	Position Position
+	Angle int
+	Scale float64
+	Force float64
+}
+
+func (s *Spark) calculateMovement() (float64, float64) {
+	x := math.Cos(float64(s.Angle) * s.Lifetime * s.Force)
+	y := math.Sin(float64(s.Angle) * s.Lifetime * s.Force)
+
+	return x, y
+}
+
+func (s *Spark) Update() {
+	x, y := s.calculateMovement()
+
+	s.Position.X += x
+	s.Position.Y += y
+
+	s.Lifetime = max(0, s.Lifetime - .16)
+}
+
+func (s *Spark) Draw(screen *ebiten.Image, camera *Camera) {
+	points := []Position{
+		{
+			X: s.Position.X + math.Cos(float64(s.Angle))*s.Lifetime*s.Scale,
+			Y: s.Position.Y + camera.Offset.Y + math.Sin(float64(s.Angle))*s.Lifetime*s.Scale,
+		},
+		{
+			X: s.Position.X + camera.Offset.X + math.Cos(float64(s.Angle)+math.Pi/2)*s.Lifetime*s.Scale*0.3,
+			Y: s.Position.Y + camera.Offset.Y + math.Sin(float64(s.Angle)+math.Pi/2)*s.Lifetime*s.Scale*0.3,
+		},
+		{
+			X: s.Position.X + camera.Offset.X - math.Cos(float64(s.Angle))*s.Lifetime*s.Scale*3.5,
+			Y: s.Position.Y + camera.Offset.Y - math.Sin(float64(s.Angle))*s.Lifetime*s.Scale*3.5,
+		},
+		{
+			X: s.Position.X + camera.Offset.X + math.Cos(float64(s.Angle)-math.Pi/2)*s.Lifetime*s.Scale*0.3,
+			Y: s.Position.Y + camera.Offset.Y - math.Sin(float64(s.Angle)+math.Pi/2)*s.Lifetime*s.Scale*0.3,
+		},
+	}
+
+	path := vector.Path{}
+	path.MoveTo(float32(points[0].X), float32(points[0].Y))
+	for _, p := range points[1:] {
+		path.LineTo(float32(p.X), float32(p.Y))
+	}
+	path.Close()
+
+	vs, is := path.AppendVerticesAndIndicesForFilling(nil, nil)
+	for i := range vs {
+		vs[i].SrcX = 1
+		vs[i].SrcY = 1
+		vs[i].ColorR = 1
+		vs[i].ColorG = 1
+		vs[i].ColorB = 1
+		vs[i].ColorA = 1
+	}
+
+	screen.DrawTriangles(vs, is, emptySubImage, &ebiten.DrawTrianglesOptions{})
+
 }
 
 func GetSpriteByID(ID int) *ebiten.Image {
@@ -108,6 +180,10 @@ func CalculateOrientationAngle(camera Camera, pos Position) int {
 func (g *Game) Update() error {
 	g.FrameCount++
 
+	if g.Server != nil{
+		g.Server.Update()
+	}
+
 	if g.Client.is_connected && (g.FrameCount%3 == 0) {
 		g.Client.SendPosition(g.Player.Position)
 	}
@@ -125,7 +201,7 @@ func (g *Game) Update() error {
 		rotation := CalculateOrientationRads(g.Camera, g.Player.GetCenter())
 		speed := float32(BULLET_SPEED)
 
-		g.Client.SendShoot(Bullet{current_pos, rotation, speed})
+		g.Client.SendShoot(Bullet{current_pos, rotation, speed, 0})
 	}
 
 	for i, bullet := range g.Client.bullets {
@@ -145,15 +221,28 @@ func (g *Game) Update() error {
 		bullet.Position.X += x * float64(bullet.Speed)
 		bullet.Position.Y += y * float64(bullet.Speed)
 
-		collision_object := g.CheckObjectCollision(g.Client.bullets[i].Position)
+		collision_object := g.Level.CheckObjectCollision(g.Client.bullets[i].Position)
 		if collision_object != nil {
 			// do cool
+			g.Sparks = append(g.Sparks, Spark{2, bullet.Position, int(bullet.Rotation), 100, 2})
+			//fmt.Println("added spark: ", g.Sparks)
 		} else {
 			bullets = append(bullets, bullet)
 		}
 	}
 
 	g.Client.bullets = bullets
+
+	sparks := []Spark{}
+	for _, spark := range g.Sparks {
+		spark.Update()
+
+		if spark.Lifetime != 0 {
+			sparks = append(sparks, spark)
+		}
+	}
+
+	g.Sparks = sparks
 
 	return nil
 
@@ -172,7 +261,7 @@ func (p *Player) Update(game *Game) {
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		player_pos.Y -= p.Speed
-		collided_object := game.CheckObjectCollision(*player_pos)
+		collided_object := game.Level.CheckObjectCollision(*player_pos)
 		if collided_object != nil {
 			player_pos.Y = collided_object.Y + collided_object.Height
 		}
@@ -180,7 +269,7 @@ func (p *Player) Update(game *Game) {
 
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
 		player_pos.Y += p.Speed
-		collided_object := game.CheckObjectCollision(*player_pos)
+		collided_object := game.Level.CheckObjectCollision(*player_pos)
 		if collided_object != nil {
 			player_pos.Y = collided_object.Y - TILE_SIZE
 		}
@@ -188,7 +277,7 @@ func (p *Player) Update(game *Game) {
 
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
 		player_pos.X -= p.Speed
-		collided_object := game.CheckObjectCollision(*player_pos)
+		collided_object := game.Level.CheckObjectCollision(*player_pos)
 		if collided_object != nil {
 			player_pos.X = collided_object.X + collided_object.Width
 		}
@@ -196,7 +285,7 @@ func (p *Player) Update(game *Game) {
 
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
 		player_pos.X += p.Speed
-		collided_object := game.CheckObjectCollision(*player_pos)
+		collided_object := game.Level.CheckObjectCollision(*player_pos)
 		if collided_object != nil {
 			player_pos.X = collided_object.X - TILE_SIZE
 		}
@@ -224,8 +313,8 @@ func (c *Camera) GetCameraDrawOptions() *ebiten.DrawImageOptions {
 	return &op
 }
 
-func (g *Game) CheckObjectCollision(position Position) *tiled.Object {
-	for _, object := range g.Level.Collisions {
+func (l *Level) CheckObjectCollision(position Position) *tiled.Object {
+	for _, object := range l.Collisions {
 		if object.X < position.X+TILE_SIZE &&
 			object.X+object.Width > position.X &&
 			object.Y < position.Y+TILE_SIZE &&
@@ -260,6 +349,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		op.GeoM.Translate(bullet.Position.X, bullet.Position.Y)
 		screen.DrawImage(BULLET_SPRITE, op)
 	}
+
+	for _, spark := range g.Sparks {
+		spark.Draw(screen, &g.Camera)
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -285,18 +378,21 @@ func main() {
 	ebiten.SetWindowTitle("Hello, World!")
 
 	client := Client{}
+	var server Server
 	if *is_host == "n" {
 		go client.RunClient(*server_ip)
 
 	} else {
-		server := Server{}
+		server = Server{level: &level}
 		go server.Host(*server_ip)
 		go client.RunLocalClient()
 	}
 
 	player_sprite := GetSpriteByID(98) // PLAYER SPRITE
 
-	game := Game{Player: Player{Speed: PLAYER_SPEED, Position: Position{1, 1}, Sprite: player_sprite}, Client: &client, Level: &level}
+	game := Game{Player: Player{Speed: PLAYER_SPEED, Position: Position{1, 1}, Sprite: player_sprite}, Client: &client, Level: &level, Server: &server}
+
+	fmt.Println(game.Server)
 
 	if game.Level.Spawn != nil {
 		game.Player.Position = Position{game.Level.Spawn.X, game.Level.Spawn.Y}

@@ -49,6 +49,7 @@ const (
 	PacketTypePositition
 	PacketTypeUpdatePlayers
 	PacketTypeBulletStart
+	PacketTypePlayerHit
 )
 
 type NegotiationResponse struct {
