@@ -19,7 +19,7 @@ type Client struct {
 	other_pos      CoordinateData
 	packet_channel chan PacketData
 	connections    []ConnectedPlayer
-	bullets		   []Bullet
+	bullets        []Bullet
 	is_connected   bool
 
 	ID uint
@@ -28,7 +28,7 @@ type Client struct {
 type Bullet struct {
 	Position Position
 	Rotation float32
-	Speed float32
+	Speed    float32
 }
 
 func (c *Client) IsSelf(addr net.UDPAddr) bool {

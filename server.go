@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"maps"
 	"net"
-	"time"
 	"sync"
+	"time"
 )
 
 type ConnectedPlayer struct {
@@ -19,12 +19,12 @@ type ConnectedPlayer struct {
 }
 
 type Server struct {
-	mediation_server net.UDPAddr
-	conn             *net.UDPConn
-	connection_keys  []string
-	connections      map[string]ConnectedPlayer
-	packet_channel   chan PacketData
-	started          bool
+	mediation_server     net.UDPAddr
+	conn                 *net.UDPConn
+	connection_keys      []string
+	connections          map[string]ConnectedPlayer
+	packet_channel       chan PacketData
+	started              bool
 	packet_channel_mutex sync.Mutex
 }
 
