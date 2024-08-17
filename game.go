@@ -85,6 +85,18 @@ func CheckCollisionY(pos *Position, delta *Delta) float64 {
 	return -1
 }
 
+func CalculateOrientationRads(pos *Position) float64 {
+	cursorX, cursorY := ebiten.CursorPosition()
+	return math.Atan2(float64(cursorX) - pos.X, float64(cursorY) - pos.Y) + math.Pi
+}
+
+func CalculateOrientationAngle(pos *Position) int {
+	radians := CalculateOrientationRads(pos)
+	angle := radians * (180 / math.Pi)
+	// Adding a 90 degree offset to get 0 degrees to the right
+	return int(angle + 360) % 360
+}
+
 func (g *Game) Update() error {
 	g.FrameCount++
 
