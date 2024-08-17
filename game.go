@@ -27,6 +27,12 @@ const (
 	BULLET_SPEED  = 2.5
 )
 
+type LevelEnum uint
+const (
+	LobbyLevel LevelEnum = iota
+	LevelOne
+)
+
 var emptyImage = ebiten.NewImage(3, 3)
 var emptySubImage = emptyImage.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)
 
@@ -190,7 +196,15 @@ func (g *Game) Update() error {
 
 	g.Player.Update(g)
 
-	camera_target_pos := Position{g.Player.Position.X - SCREEN_WIDTH/2, g.Player.Position.Y - SCREEN_HEIGHT/2}
+	targetX := g.Player.Position.X - SCREEN_WIDTH/2
+	targetX = max(0, targetX)
+	targetX = min(float64(g.Level.Map.Width * TILE_SIZE - SCREEN_WIDTH), targetX)
+
+	targetY := g.Player.Position.Y - SCREEN_HEIGHT/2
+	targetY = max(0, targetY)
+	targetY = min(float64(g.Level.Map.Height * TILE_SIZE - SCREEN_HEIGHT), targetY)
+
+	camera_target_pos := Position{targetX, targetY}
 	g.Camera.Update(camera_target_pos)
 	if ebiten.IsKeyPressed(ebiten.KeyQ) {
 		return ebiten.Termination
@@ -301,7 +315,7 @@ func (p *Player) GetCenter() Position {
 }
 
 func (c *Camera) Update(target_pos Position) {
-	coefficient := 20.0
+	coefficient := 10.0
 	c.Offset.X += (target_pos.X - c.Offset.X) / coefficient
 	c.Offset.Y += (target_pos.Y - c.Offset.Y) / coefficient
 }
@@ -372,7 +386,7 @@ func main() {
 	}
 
 	level := Level{}
-	LoadLevel(&level)
+	LoadLevel(&level, LevelOne)
 
 	ebiten.SetWindowSize(RENDER_WIDTH, RENDER_HEIGHT)
 	ebiten.SetWindowTitle("Hello, World!")
@@ -392,8 +406,6 @@ func main() {
 
 	game := Game{Player: Player{Speed: PLAYER_SPEED, Position: Position{1, 1}, Sprite: player_sprite}, Client: &client, Level: &level, Server: &server}
 
-	fmt.Println(game.Server)
-
 	if game.Level.Spawn != nil {
 		game.Player.Position = Position{game.Level.Spawn.X, game.Level.Spawn.Y}
 	}
@@ -403,13 +415,30 @@ func main() {
 	}
 }
 
-func LoadLevel(level *Level) {
-	gameMap, err := tiled.LoadFile("assets/Tiled/sampleMap.tmx")
-	level.Map = gameMap
+func LoadLevel(level *Level, levelType LevelEnum) {
+	var gameMap *tiled.Map
+	switch levelType {
+		case LobbyLevel:
+			_gameMap, err := tiled.LoadFile("assets/Tiled/sampleMap.tmx")
+			gameMap = _gameMap
 
-	if err != nil {
-		panic(err)
+			if err != nil {
+				panic(err)
+			}
+		default:
+			_gameMap, err := tiled.LoadFile(fmt.Sprintf("assets/Tiled/level_%d.tmx", levelType))
+			gameMap = _gameMap
+
+			if err != nil {
+				panic(err)
+			}
+		}
+
+	if gameMap == nil {
+		panic("no gamemap sourced")
 	}
+
+	level.Map = gameMap
 
 	mapRenderer, err := render.NewRenderer(gameMap)
 
