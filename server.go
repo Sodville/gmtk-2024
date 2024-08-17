@@ -8,12 +8,18 @@ import (
 	"time"
 )
 
+type ConnectedPlayer struct {
+	Addr     net.UDPAddr
+	Position Position
+}
+
 type Server struct {
 	mediation_server net.UDPAddr
-	conn           *net.UDPConn
-	connections    map[*net.UDPAddr]net.UDPAddr
-	packet_channel chan PacketData
-	started bool
+	conn             *net.UDPConn
+	connection_keys  []string
+	connections      map[string]ConnectedPlayer
+	packet_channel   chan PacketData
+	started          bool
 }
 
 func (s *Server) listen() {
@@ -34,19 +40,24 @@ func (s *Server) listen() {
 	}
 }
 
-func (s *Server) Broadcast(packet_data PacketData) {
-	for value, _ := range s.connections {
-		raw_data, err := SerializePacket(packet_data.Packet, packet_data.Data)
+func (s *Server) Broadcast(packet Packet, data any) {
+	for _, value := range s.connections {
+		raw_data, err := SerializePacket(packet, data)
 		if err != nil {
 			fmt.Println("error serializing packet in Broadcast", err)
 		}
 
-		s.conn.WriteToUDP(raw_data, value)
+		s.conn.WriteToUDP(raw_data, &value.Addr)
 	}
 }
 
+func (s *Server) AddConnection(key string, new_connection ConnectedPlayer) {
+	s.connection_keys = append(s.connection_keys, key)
+	s.connections[key] = new_connection
+}
+
 func (s *Server) Host(mediation_server_ip string) {
-	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: SERVERPORT})
+	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("0.0.0.0"), Port: SERVERPORT})
 	s.conn = conn
 	if err != nil {
 		fmt.Println("Error dialing UDP:", err)
@@ -70,7 +81,7 @@ func (s *Server) Host(mediation_server_ip string) {
 
 	s.packet_channel = make(chan PacketData)
 
-	s.connections = make(map[*net.UDPAddr]net.UDPAddr)
+	s.connections = make(map[string]ConnectedPlayer)
 
 	go s.listen()
 
@@ -86,10 +97,28 @@ func (s *Server) Host(mediation_server_ip string) {
 			if err != nil {
 				fmt.Println("something went wrong when reaching out to match", err)
 			}
-			if s.started { return }
+			if s.started {
+				return
+			}
 		}
 	}()
 
+	go func() {
+		for {
+			time.Sleep(time.Millisecond * 36)
+
+			packet = Packet{}
+			packet.PacketType = PacketTypeUpdatePlayers
+
+			connected_player_list := []ConnectedPlayer{}
+			for _, key := range s.connection_keys {
+				value := s.connections[key]
+				connected_player_list = append(connected_player_list, value)
+			}
+
+			s.Broadcast(packet, connected_player_list)
+		}
+	}()
 
 	for {
 		select {
@@ -113,7 +142,7 @@ func (s *Server) Host(mediation_server_ip string) {
 					fmt.Println("something went wrong when reaching out to match", err)
 				}
 
-				s.connections[&new_connection] = new_connection
+				s.AddConnection(new_connection.String(), ConnectedPlayer{new_connection, Position{}})
 				fmt.Println("got new connection")
 				fmt.Println("connections: ", s.connections)
 
@@ -126,9 +155,20 @@ func (s *Server) Host(mediation_server_ip string) {
 
 				// therefore we can safely assume that the incomming packet is from the owner we want to connect with
 				// and then we can set the owner of the packet to our desired target address to assert the case
-				s.connections[&packet_data.Addr] = packet_data.Addr
+				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{packet_data.Addr, Position{}})
 
 				fmt.Println(packet_data.Packet, inner_data)
+			case PacketTypePositition:
+				var position Position
+				err = dec.Decode(&position)
+				if err != nil {
+					fmt.Println("error decoding position: ", err)
+				}
+
+				fmt.Println(packet_data.Addr.String(), position)
+				player := s.connections[packet_data.Addr.String()]
+				player.Position = position
+				s.connections[packet_data.Addr.String()] = player
 			}
 
 		case <-time.After(5 * time.Second):
@@ -145,4 +185,3 @@ func (s *Server) Host(mediation_server_ip string) {
 		}
 	}
 }
-

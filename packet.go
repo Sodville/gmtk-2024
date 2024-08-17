@@ -47,6 +47,7 @@ const (
 	PacketTypeKeepAlive
 	PacketTypeDisconnect
 	PacketTypePositition
+	PacketTypeUpdatePlayers
 )
 
 type NegotiationResponse struct {

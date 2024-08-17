@@ -13,9 +13,11 @@ const MEDIATION_SERVERPORT = 8080
 
 type Client struct {
 	conn           *net.UDPConn
-	host_addr     net.UDPAddr
+	host_addr      net.UDPAddr
 	other_pos      CoordinateData
 	packet_channel chan PacketData
+	connections    []ConnectedPlayer
+	is_connected   bool
 }
 
 func (c *Client) listen() {
@@ -36,11 +38,11 @@ func (c *Client) listen() {
 	}
 }
 
-func (c *Client) SendPosition(coords CoordinateData) {
+func (c *Client) SendPosition(pos Position) {
 	packet := Packet{}
 	packet.PacketType = PacketTypePositition
 
-	raw_data, err := SerializePacket(packet, coords)
+	raw_data, err := SerializePacket(packet, pos)
 	if err != nil {
 		fmt.Println("error serializing coordinate packet", err)
 	}
@@ -68,6 +70,9 @@ func (c *Client) RunLocalClient() {
 
 	// we know the host addr because we are the host addr
 	c.host_addr = net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: SERVERPORT}
+
+	// we know that he is connected be cause he is us
+	c.is_connected = true
 
 	raw_data, _ := SerializePacket(packet, data)
 	_, err = conn.WriteToUDP(raw_data, &c.host_addr)
@@ -108,6 +113,15 @@ func (c *Client) HandlePacket() {
 			if err != nil {
 				fmt.Println("something went wrong when reaching out to match", err)
 			}
+
+			c.is_connected = true
+		case PacketTypeUpdatePlayers:
+			err := dec.Decode(&c.connections)
+
+			if err != nil {
+				fmt.Println("somethign went wrong when upating connections", err)
+			}
+
 		case PacketTypeNegotiate:
 			var inner_data ReconcilliationData
 

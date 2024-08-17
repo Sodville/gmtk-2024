@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"image"
 	"image/color"
 	"log"
 
@@ -25,7 +24,6 @@ type Position struct {
 type Player struct {
 	Position Position
 	Speed    int
-	Chain    []Position
 }
 
 type Game struct {
@@ -35,47 +33,37 @@ type Game struct {
 }
 
 func CheckCollision(pos Position) bool {
-	return false
-}
-
-func drawStackedSprites(screen *ebiten.Image, sprites []*ebiten.Image, rotation float64, x, y, offset int) {
-	for i, sprite := range sprites {
-		op := &ebiten.DrawImageOptions{}
-
-		spriteWidth := sprite.Bounds().Size().X
-		spriteHeight := sprite.Bounds().Size().Y
-		op.GeoM.Translate(float64(-spriteWidth/2), float64(-spriteHeight/2)) // Center the sprite
-		op.GeoM.Rotate(rotation / 3.14)
-		op.GeoM.Translate(float64(spriteWidth/2), float64(spriteHeight/2)) // Re-adjust the center back
-		op.GeoM.Translate(float64(x), float64(y+-i*offset))
-
-		screen.DrawImage(sprite, op)
+	if pos.X < 1 || pos.X > SCREEN_WIDTH-TILE_SIZE {
+		return true
 	}
+	if pos.Y < 1 || pos.Y > SCREEN_HEIGHT-TILE_SIZE {
+		return true
+	}
+	return false
 }
 
 func (g *Game) Update() error {
 	g.FrameCount++
-	//g.Client.SendPosition(CoordinateData{float32(g.Player.Position.X), float32(g.Player.Position.Y)})
+
+	if g.Client.is_connected {
+		g.Client.SendPosition(g.Player.Position)
+	}
 
 	g.Player.Update()
 	if ebiten.IsKeyPressed(ebiten.KeyQ) {
 		return ebiten.Termination
 	}
 
-	//fmt.Println(g.Player.Position)
-
 	return nil
 }
 
 func (p *Player) Draw(screen *ebiten.Image) {
-	for _, chain := range p.Chain {
-		vector.DrawFilledCircle(screen, float32(p.Position.X+chain.X), float32(p.Position.Y+chain.Y), 15, color.White, false)
-	}
+	vector.DrawFilledCircle(screen, float32(p.Position.X), float32(p.Position.Y), 15, color.White, false)
 }
 
 func (p *Player) Update() {
 	player_pos := &p.Position
-	init_player_pos := player_pos
+	init_player_pos := *player_pos
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		player_pos.Y -= p.Speed
@@ -97,7 +85,6 @@ func (p *Player) Update() {
 	if CheckCollision(*player_pos) {
 		player_pos.X = init_player_pos.X
 	}
-
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -106,33 +93,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	g.Player.Draw(screen)
 
+	for _, connection := range g.Client.connections {
+		vector.DrawFilledCircle(screen, float32(connection.Position.X), float32(connection.Position.Y), 15, color.White, false)
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return SCREEN_WIDTH, SCREEN_HEIGHT
 }
 
-func splitSpriteSheet(spriteSheet *ebiten.Image, spriteHeight int) []*ebiten.Image {
-	var sprites []*ebiten.Image
-
-	sheetWidth := spriteSheet.Bounds().Size().X
-	sheetHeight := spriteSheet.Bounds().Size().Y
-
-	for y := sheetHeight; y > 0; y -= spriteHeight {
-		spriteRect := image.Rect(0, y, sheetWidth, y-spriteHeight)
-
-		sprite := spriteSheet.SubImage(spriteRect).(*ebiten.Image)
-
-		sprites = append(sprites, sprite)
-	}
-
-	return sprites
-}
-
 func main() {
 	is_server := flag.String("server", "y", "run server")
 	is_host := flag.String("host", "n", "host")
-	server_ip := flag.String("ip", "192.168.0.48", "ip")
+	server_ip := flag.String("ip", "84.215.22.166", "ip")
 
 	flag.Parse()
 
@@ -154,12 +127,7 @@ func main() {
 		go client.RunLocalClient()
 	}
 
-	chain := []Position{
-		{0, 0},
-		{10, 0},
-		{20, 0},
-	}
-	game := Game{Player: Player{Speed: TILE_SIZE, Chain: chain}, Client: &client}
+	game := Game{Player: Player{Speed: TILE_SIZE, Position: Position{1, 1}}, Client: &client}
 
 	if err := ebiten.RunGame(&game); err != nil {
 		log.Fatal(err)
