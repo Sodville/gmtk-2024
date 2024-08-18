@@ -56,7 +56,7 @@ const (
 	PacketTypeNegotiate
 	PacketTypeKeepAlive
 	PacketTypeDisconnect
-	PacketTypePositition
+	PacketTypeUpdateCurrentPlayer
 	PacketTypeUpdatePlayers
 	PacketTypeBulletStart
 	PacketTypePlayerHit

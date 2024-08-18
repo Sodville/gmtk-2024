@@ -42,6 +42,13 @@ type PlayerState struct {
 	FrameCount          uint
 }
 
+type PlayerUpdateData struct {
+	Position Position
+	Rotation float64
+	Weapon WeaponType
+	isRolling bool
+}
+
 func (ps *PlayerState) GetInterpolatedPos() Position {
 	// estimated frame count between packets
 	// f := 1000.0 / SERVER_PLAYER_SYNC_DELAY_MS
@@ -95,11 +102,17 @@ func (c *Client) listen() {
 	}
 }
 
-func (c *Client) SendPosition(pos Position) {
+func (c *Client) SendPosition(pos Position, rotation float64, weapon WeaponType, isRolling bool) {
 	packet := Packet{}
-	packet.PacketType = PacketTypePositition
+	packet.PacketType = PacketTypeUpdateCurrentPlayer
 
-	raw_data, err := SerializePacket(packet, pos)
+	raw_data, err := SerializePacket(packet,
+	PlayerUpdateData{
+		pos,
+		rotation,
+		weapon,
+		isRolling,
+	})
 	if err != nil {
 		fmt.Println("error serializing coordinate packet", err)
 	}

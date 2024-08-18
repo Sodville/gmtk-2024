@@ -14,6 +14,9 @@ import (
 type ConnectedPlayer struct {
 	Addr     net.UDPAddr
 	Position Position
+	Rotation float64
+	Weapon   WeaponType
+	IsRolling bool
 
 	// currently does not work
 	ID uint
@@ -262,7 +265,7 @@ func (s *Server) Host(mediation_server_ip string) {
 				dec.Decode(&new_connection)
 
 				// sync.Map (which is a struct) doesn't an equivalent method to len()
-				new_player := ConnectedPlayer{new_connection, Position{}, uint(len(s.connection_keys)) + 1}
+				new_player := ConnectedPlayer{new_connection, Position{}, 0, 0, false, uint(len(s.connection_keys)) + 1}
 				s.AddConnection(new_connection.String(), new_player)
 
 				negotiatePacket := Packet{}
@@ -296,20 +299,23 @@ func (s *Server) Host(mediation_server_ip string) {
 						break
 					}
 				}
-				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{packet_data.Addr, Position{}, uint(len(s.connection_keys)) + 1})
+				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{packet_data.Addr, Position{}, 0, 0, false, uint(len(s.connection_keys)) + 1})
 
-			case PacketTypePositition:
-				var position Position
-				error := dec.Decode(&position)
-				if error != nil {
-					fmt.Println("error decoding position: ", error)
-					fmt.Println("packet: ", packet_data.Packet)
-					fmt.Println("packet: ", packet_data.Data)
+			case PacketTypeUpdateCurrentPlayer:
+				var playerUpdate PlayerUpdateData
+				decode_err := dec.Decode(&playerUpdate )
+				if decode_err != nil {
+					fmt.Println("error decoding player update: ", decode_err)
 					continue
 				}
+
 				player, ok := loadFromSyncMap[ConnectedPlayer](packet_data.Addr.String(), &s.connections)
 				if ok {
-					player.Position = position
+					player.Position = playerUpdate.Position
+					player.Rotation = playerUpdate.Rotation
+					player.Weapon = playerUpdate.Weapon
+					player.IsRolling = playerUpdate.isRolling
+
 					s.connections.Store(packet_data.Addr.String(), player)
 				}
 
