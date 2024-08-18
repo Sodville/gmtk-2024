@@ -83,6 +83,23 @@ func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {
 	}
 }
 
+func (s *Server) CheckTimedOutPlayers() {
+	s.connection_keys_mutex.RLock()
+	newConnectionKeys := make([]string, 0)
+
+	for _, conn := range s.connection_keys {
+		player, ok := loadFromSyncMap[ConnectedPlayer](conn, &s.connections)
+		if ok && int(player.TimeLastPacket) - int(time.Now().UnixMilli()) + TIMEOUT_INTERVAL_MS > 0 {
+			newConnectionKeys = append(newConnectionKeys, conn)
+		}
+	}
+	s.connection_keys_mutex.RUnlock()
+
+	s.connection_keys_mutex.Lock()
+	s.connection_keys = newConnectionKeys
+	s.connection_keys_mutex.Unlock()
+}
+
 func (s *Server) listen() {
 	buf := make([]byte, 2048)
 	for {
@@ -218,6 +235,8 @@ func (s *Server) Update() {
 	s.bullets_mutex.Unlock()
 
 	s.CheckState()
+
+	s.CheckTimedOutPlayers()
 }
 
 // Note that calls of this method should be protected by write-locking connection_keys_mutex

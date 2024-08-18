@@ -20,6 +20,7 @@ const (
 	PLAYER_SPEED                = 2
 	SERVER_PLAYER_SYNC_DELAY_MS = 50
 	TOGGLECOOLDOWN              = 30
+	TIMEOUT_INTERVAL_MS         = 2500
 )
 
 var emptyImage = ebiten.NewImage(3, 3)
