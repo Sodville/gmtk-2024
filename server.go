@@ -217,9 +217,9 @@ func (s *Server) Host(mediation_server_ip string) {
 		for {
 			time.Sleep(time.Second * 2)
 
-			packet = Packet{}
-			packet.PacketType = PacketTypeKeepAlive
-			serialized_packet, _ := SerializePacket(packet, ReconcilliationData{"keepalive"})
+			keepAlivePacket := Packet{}
+			keepAlivePacket.PacketType = PacketTypeKeepAlive
+			serialized_packet, _ := SerializePacket(keepAlivePacket, ReconcilliationData{"keepalive"})
 
 			_, err = conn.WriteToUDP(serialized_packet, &s.mediation_server)
 			if err != nil {
@@ -235,8 +235,8 @@ func (s *Server) Host(mediation_server_ip string) {
 		for {
 			time.Sleep(time.Millisecond * SERVER_PLAYER_SYNC_DELAY_MS)
 
-			packet = Packet{}
-			packet.PacketType = PacketTypeUpdatePlayers
+			updatePlayerPacket := Packet{}
+			updatePlayerPacket.PacketType = PacketTypeUpdatePlayers
 
 			connected_player_list := []ConnectedPlayer{}
 
@@ -247,7 +247,7 @@ func (s *Server) Host(mediation_server_ip string) {
 				}
 			}
 
-			s.Broadcast(packet, connected_player_list)
+			s.Broadcast(updatePlayerPacket, connected_player_list)
 		}
 	}()
 
@@ -265,11 +265,11 @@ func (s *Server) Host(mediation_server_ip string) {
 				new_player := ConnectedPlayer{new_connection, Position{}, uint(len(s.connection_keys)) + 1}
 				s.AddConnection(new_connection.String(), new_player)
 
-				packet = Packet{}
-				packet.PacketType = PacketTypeNegotiate
+				negotiatePacket := Packet{}
+				negotiatePacket.PacketType = PacketTypeNegotiate
 				data := new_player.ID
 
-				raw_data, err := SerializePacket(packet, data)
+				raw_data, err := SerializePacket(negotiatePacket, data)
 				if err != nil {
 					fmt.Println("error serializing packet", err)
 				}
