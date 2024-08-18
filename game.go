@@ -39,8 +39,6 @@ const (
 var emptyImage = ebiten.NewImage(3, 3)
 var emptySubImage = emptyImage.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)
 
-var BULLET_SPRITE *ebiten.Image = GetSpriteByID(115)
-
 type Position struct {
 	X, Y float64
 }
@@ -79,6 +77,8 @@ type Game struct {
 	Level      *Level
 	Camera     Camera
 	Sparks     []Spark
+
+	Debris     []Bullet
 
 	event_handler_running bool
 }
@@ -146,7 +146,7 @@ func (g *Game) Update() error {
 		current_pos := g.Player.Position
 		speed := float32(BULLET_SPEED)
 
-		g.Client.SendShoot(Bullet{current_pos, rotation, speed, 0})
+		g.Client.SendShoot(Bullet{current_pos, rotation, g.Player.Weapon, speed, 0})
 		g.Player.ShootCooldown = GetWeaponCooldown(g.Player.Weapon)
 	}
 
@@ -173,6 +173,9 @@ func (g *Game) Update() error {
 		if collision_object != nil {
 			// do cool
 			g.Sparks = append(g.Sparks, Spark{2, bullet.Position, int(bullet.Rotation), 100, 2})
+			if bullet.WeaponType == WeaponBow {
+				g.Debris = append(g.Debris, bullet)
+			}
 			//fmt.Println("added spark: ", g.Sparks)
 		} else {
 			bullets = append(bullets, bullet)
@@ -378,9 +381,39 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	for _, bullet := range g.Client.bullets {
-		op := g.Camera.GetCameraDrawOptions()
+		sprite := GetBulletSprite(bullet.WeaponType)
+
+		width := sprite.Bounds().Dx()
+		height := sprite.Bounds().Dy()
+
+		op := ebiten.DrawImageOptions{}
+
+		op.GeoM.Translate(-float64(width) / 2, -float64(height) / 2)
+		op.GeoM.Rotate(bullet.Rotation + math.Pi * .5)
+		op.GeoM.Translate(float64(width) / 2, float64(height) / 2)
+
 		op.GeoM.Translate(bullet.Position.X, bullet.Position.Y)
-		screen.DrawImage(BULLET_SPRITE, op)
+		op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
+
+		screen.DrawImage(sprite, &op)
+	}
+
+	for _, bullet := range g.Debris {
+		sprite := GetBulletSprite(bullet.WeaponType)
+
+		width := sprite.Bounds().Dx()
+		height := sprite.Bounds().Dy()
+
+		op := ebiten.DrawImageOptions{}
+
+		op.GeoM.Translate(-float64(width) / 2, -float64(height) / 2)
+		op.GeoM.Rotate(bullet.Rotation + math.Pi * .5)
+		op.GeoM.Translate(float64(width) / 2, float64(height) / 2)
+
+		op.GeoM.Translate(bullet.Position.X, bullet.Position.Y)
+		op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
+
+		screen.DrawImage(sprite, &op)
 	}
 
 	for _, spark := range g.Sparks {
@@ -453,7 +486,7 @@ func main() {
 
 	player_sprite := GetSpriteByID(98) // PLAYER SPRITE
 
-	game := Game{Player: Player{Speed: PLAYER_SPEED, Position: Position{1, 1}, Sprite: player_sprite, Weapon: WeaponRevolver}, Client: &client, Level: &level, Server: &server}
+	game := Game{Player: Player{Speed: PLAYER_SPEED, Position: Position{1, 1}, Sprite: player_sprite, Weapon: WeaponBow}, Client: &client, Level: &level, Server: &server}
 
 	if game.Level.Spawn != nil {
 		game.Player.Position = Position{game.Level.Spawn.X, game.Level.Spawn.Y}
