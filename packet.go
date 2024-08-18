@@ -35,7 +35,7 @@ type ReconcilliationData struct {
 
 type ServerEvent struct {
 	State ServerStateData
-	Type ServerEventType
+	Type  ServerEventType
 }
 
 type ServerStateData struct {

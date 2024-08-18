@@ -25,6 +25,7 @@ type HitInfo struct {
 }
 
 type ServerEventType uint
+
 const (
 	ServerNewLevelEvent ServerEventType = iota + 1
 )
@@ -39,7 +40,7 @@ type Server struct {
 	bullets              []Bullet
 	level                *Level
 	packet_channel_mutex sync.Mutex
-	event_channel		 chan ServerEvent
+	event_channel        chan ServerEvent
 }
 
 func (s *Server) listen() {
@@ -64,7 +65,7 @@ func (s *Server) Broadcast(packet Packet, data any) {
 	connections := make(map[string]ConnectedPlayer)
 	maps.Copy(connections, s.connections)
 	for _, value := range s.connection_keys {
-		value  := connections[value]
+		value := connections[value]
 		raw_data, err := SerializePacket(packet, data)
 		if err != nil {
 			fmt.Println("error serializing packet in Broadcast", err)

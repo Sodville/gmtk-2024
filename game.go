@@ -329,7 +329,7 @@ func (g *Game) StartChangeLevel(levelType LevelEnum, when time.Time) {
 	}
 }
 
-func (g* Game) HandleEvent() {
+func (g *Game) HandleEvent() {
 	g.event_handler_running = true
 	for {
 		select {

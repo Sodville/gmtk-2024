@@ -21,7 +21,7 @@ type Client struct {
 	player_states  map[string]PlayerState
 	bullets        []Bullet
 	is_connected   bool
-	event_channel		 chan ServerEvent
+	event_channel  chan ServerEvent
 
 	ID uint
 }
@@ -223,7 +223,7 @@ func (c *Client) HandlePacket() {
 			_ = dec.Decode(&event)
 
 			fmt.Println("got server event", event.Type)
-			go func() {c.event_channel <- event}()
+			go func() { c.event_channel <- event }()
 
 		}
 
