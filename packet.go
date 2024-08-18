@@ -37,6 +37,7 @@ type Event struct {
 	Type EventType
 
 	// these fields are considered unions and can be safely considered nil
+	Enemies []Enemy
 	Level LevelEnum
 }
 

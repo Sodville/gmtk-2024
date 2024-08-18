@@ -21,6 +21,9 @@ const (
 	SERVER_PLAYER_SYNC_DELAY_MS = 50
 	TOGGLECOOLDOWN              = 30
 	TIMEOUT_INTERVAL_MS         = 2500
+	MAX_SPAWN_COUNT				= 12
+	MINIMUM_SPAWN_COOLDOWN      = 30
+	SPAWN_IDLE_TIME_FRAMES      = 60 * 2
 )
 
 var emptyImage = ebiten.NewImage(3, 3)
@@ -34,6 +37,7 @@ type Game struct {
 	Level      *Level
 	Camera     Camera
 	Sparks     []Spark
+	Enemies    []Enemy
 
 	Debris []Bullet
 
@@ -84,6 +88,11 @@ func (g *Game) Update() error {
 		g.Player.Weapon = WeaponGun
 	}
 
+	if ebiten.IsKeyPressed(ebiten.KeyV) && g.toggleCooldown == 0 {
+		g.Enemies = append(g.Enemies, Enemy{CharacterZombie, g.Player.Position, 0, 0, 0})
+		g.toggleCooldown = TOGGLECOOLDOWN
+	}
+
 	if ebiten.IsKeyPressed(ebiten.KeyR) && g.toggleCooldown == 0 {
 		g.Client.ToggleReady()
 		g.toggleCooldown = TOGGLECOOLDOWN
@@ -129,17 +138,31 @@ func (g *Game) Update() error {
 		bullet.Position.X += x * float64(bullet.Speed)
 		bullet.Position.Y += y * float64(bullet.Speed)
 
+		damage := GetWeaponDamage(bullet.WeaponType)
+		hitEnemy := false
+
+		if !bullet.HurtsPlayer {
+			for key, enemy := range g.Enemies {
+				if bullet.Position.X < enemy.Position.X+TILE_SIZE &&
+				bullet.Position.X+4 > enemy.Position.X && // 4 is width
+				bullet.Position.Y < enemy.Position.Y+TILE_SIZE &&
+				bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
+					hitEnemy = true
+					g.Enemies[key].Life = max(0, enemy.Life - damage)
+				}
+			}
+		}
+
 		collision_object := g.Level.CheckObjectCollision(g.Client.bullets[i].Position)
-		if collision_object != nil {
-			// do cool
+		if collision_object != nil || hitEnemy {
 			g.Sparks = append(g.Sparks, Spark{2, bullet.Position, int(bullet.Rotation), 100, 2})
-			if bullet.WeaponType == WeaponBow {
+			if bullet.WeaponType == WeaponBow && !hitEnemy {
 				g.Debris = append(g.Debris, bullet)
 			}
-			//fmt.Println("added spark: ", g.Sparks)
 		} else {
 			bullets = append(bullets, bullet)
 		}
+
 	}
 	g.Client.bullets = bullets
 	g.Client.bullets_mutex.Unlock()
@@ -176,8 +199,16 @@ func (g *Game) Update() error {
 			sparks = append(sparks, spark)
 		}
 	}
-
 	g.Sparks = sparks
+
+	enemies := []Enemy{}
+	for key := range g.Enemies {
+		g.Enemies[key].Update()
+		if g.Enemies[key].Life > 0 {
+			enemies = append(enemies, g.Enemies[key])
+		}
+	}
+	g.Enemies = enemies
 
 	return nil
 
@@ -188,6 +219,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.DrawImage(g.Level.MapImage, g.Camera.GetCameraDrawOptions())
 
 	g.Player.Draw(screen, g.Camera)
+
+	for _, enemy := range g.Enemies {
+		enemy.Draw(screen, g.Camera)
+	}
 
 	g.Client.player_states_mutex.RLock()
 	for _, state := range g.Client.player_states {
@@ -304,6 +339,8 @@ func (g *Game) HandleEvent() {
 			switch event_data.Type {
 			case NewLevelEvent:
 				g.ChangeLevel(event_data.Level)
+			case SpawnEnemiesEvent:
+				g.Enemies = append(g.Enemies, event_data.Enemies...)
 			}
 		}
 	}
@@ -339,6 +376,7 @@ func main() {
 	}
 
 	InitializeWeapons()
+	InitializeCharacters()
 
 	player_sprite := GetSpriteByID(98) // PLAYER SPRITE
 

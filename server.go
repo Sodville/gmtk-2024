@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -41,6 +42,7 @@ type EventType uint
 
 const (
 	NewLevelEvent EventType = iota + 1
+	SpawnEnemiesEvent
 )
 
 type ServerStateContext struct {
@@ -65,6 +67,8 @@ type Server struct {
 	bullets_mutex         sync.RWMutex
 	level                 *Level
 	State                 ServerState
+	Enemies				  []Enemy
+	SpawnCooldown		  float64
 }
 
 func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {
@@ -167,8 +171,15 @@ func (s *Server) UpdateState() {
 			s.State.State = ServerStatePlaying
 			s.State.Context = ServerStateContext{}
 			s.State.Context.Level = LevelOne
+
+			LoadLevel(s.level, s.State.Context.Level)
+		}
+	} else if s.State.State == ServerStatePlaying {
+		if s.SpawnCooldown == 0 {
+			s.StartSpawnMonsterEvent()
 		}
 	}
+
 }
 
 func (s *Server) CheckState() {
@@ -180,6 +191,53 @@ func (s *Server) CheckState() {
 		packet.PacketType = PacketTypeServerStateChanged
 		s.Broadcast(packet, s.State)
 	}
+}
+func (s *Server) SetSpawnCooldown() float64 {
+	r := rand.New(rand.NewSource(99))
+
+	return float64(MINIMUM_SPAWN_COOLDOWN + r.Intn(MINIMUM_SPAWN_COOLDOWN))
+}
+
+func (s *Server) StartSpawnMonsterEvent() {
+	totalWidth := s.level.Map.Width * TILE_SIZE
+	totalHeight := s.level.Map.Height * TILE_SIZE
+
+	r := rand.New(rand.NewSource(time.Now().Unix()))
+
+	desiredX := r.Intn(totalWidth)
+	desiredY := r.Intn(totalHeight)
+
+	radius := 80
+	EnemiesToSpawn := []Enemy{}
+	for i := 0; i < r.Intn(MAX_SPAWN_COUNT); i++ {
+		X := r.Intn(radius * 2) - radius
+		Y := r.Intn(radius * 2) - radius
+
+		enemy := Enemy{
+			CharacterZombie,
+			Position{float64(X + desiredX), float64(Y + desiredY)},
+			0,
+			0,
+			GetLifeForCharacter(CharacterZombie),
+		}
+
+		collision := s.level.CheckObjectCollision(enemy.Position)
+		if collision == nil {
+			EnemiesToSpawn = append(EnemiesToSpawn, enemy)
+		}
+
+	}
+
+	event := Event{}
+	event.Enemies = EnemiesToSpawn
+	event.Type = SpawnEnemiesEvent
+
+	packet := Packet{}
+	packet.PacketType = PacketTypeServerEvent
+	s.Broadcast(packet, event)
+
+	s.Enemies = append(s.Enemies, EnemiesToSpawn...)
+	s.SpawnCooldown = s.SetSpawnCooldown()
 }
 
 func (s *Server) Update() {
@@ -198,8 +256,22 @@ func (s *Server) Update() {
 		bullet.GracePeriod = max(0, bullet.GracePeriod-0.16)
 
 		should_remove := false
+		damage := GetWeaponDamage(bullet.WeaponType)
 
-		if bullet.GracePeriod == 0 && bullet.HurtsPlayer {
+		// it's our bullet shooting enemies, pew pew
+		if !bullet.HurtsPlayer {
+			for key, enemy := range s.Enemies {
+				if bullet.Position.X < enemy.Position.X+TILE_SIZE &&
+				bullet.Position.X+4 > enemy.Position.X && // 4 is width
+				bullet.Position.Y < enemy.Position.Y+TILE_SIZE &&
+				bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
+					should_remove = true
+					log.Println("hit enemy", enemy.Life)
+					s.Enemies[key].Life = max(0, enemy.Life - damage)
+
+				}
+			}
+		} else if bullet.GracePeriod == 0 {
 			s.connections.Range(func(key, value any) bool {
 				player, ok := value.(ConnectedPlayer)
 				if ok {
@@ -210,7 +282,7 @@ func (s *Server) Update() {
 						packet := Packet{}
 						packet.PacketType = PacketTypePlayerHit
 
-						s.Broadcast(packet, HitInfo{player, GetWeaponDamage(bullet.WeaponType)}) // TODO: fix damage etc.
+						s.Broadcast(packet, HitInfo{player, damage})
 						should_remove = true
 					}
 				} else {
@@ -235,6 +307,17 @@ func (s *Server) Update() {
 	s.bullets_mutex.Unlock()
 
 	s.CheckState()
+
+	s.SpawnCooldown = max(0, s.SpawnCooldown - 0.16)
+
+	enemies := []Enemy{}
+	for key := range s.Enemies {
+		s.Enemies[key].Update()
+		if s.Enemies[key].Life > 0 {
+			enemies = append(enemies, s.Enemies[key])
+		}
+	}
+	s.Enemies = enemies
 
 	s.CheckTimedOutPlayers()
 }
