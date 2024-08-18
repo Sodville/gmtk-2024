@@ -149,7 +149,7 @@ func (s *Server) Update() {
 
 		should_remove := false
 
-		if bullet.GracePeriod == 0 {
+		if bullet.GracePeriod == 0 && bullet.HurtsPlayer {
 			s.connections.Range(func(key, value any) bool {
 				player, ok := value.(ConnectedPlayer)
 				if ok {
@@ -160,7 +160,7 @@ func (s *Server) Update() {
 						packet := Packet{}
 						packet.PacketType = PacketTypePlayerHit
 
-						s.Broadcast(packet, HitInfo{player, 20}) // TODO: fix damage etc.
+						s.Broadcast(packet, HitInfo{player, GetWeaponDamage(bullet.WeaponType)}) // TODO: fix damage etc.
 						should_remove = true
 					}
 				} else {

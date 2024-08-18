@@ -24,7 +24,6 @@ const (
 	RENDER_HEIGHT               = 480
 	TILE_SIZE                   = 16
 	PLAYER_SPEED                = 2
-	BULLET_SPEED                = 2.5
 	SERVER_PLAYER_SYNC_DELAY_MS = 50
 )
 
@@ -139,14 +138,32 @@ func (g *Game) Update() error {
 		return ebiten.Termination
 	}
 
+	if ebiten.IsKeyPressed(ebiten.Key1) {
+		g.Player.Weapon = WeaponBow
+	}
+
+	if ebiten.IsKeyPressed(ebiten.Key2) {
+		g.Player.Weapon = WeaponRevolver
+	}
+
+	if ebiten.IsKeyPressed(ebiten.Key3) {
+		g.Player.Weapon = WeaponGun
+	}
+
 	rotation := CalculateOrientationRads(g.Camera, g.Player.GetCenter())
 	g.Player.Rotation = rotation
 
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) && g.Player.ShootCooldown == 0 {
 		current_pos := g.Player.Position
-		speed := float32(BULLET_SPEED)
 
-		g.Client.SendShoot(Bullet{current_pos, rotation, g.Player.Weapon, speed, 0})
+		g.Client.SendShoot(Bullet{
+			current_pos,
+			rotation,
+			g.Player.Weapon,
+			GetWeaponSpeed(g.Player.Weapon),
+			0,
+			GetWeaponFriendlyFire(g.Player.Weapon)},
+		)
 		g.Player.ShootCooldown = GetWeaponCooldown(g.Player.Weapon)
 	}
 

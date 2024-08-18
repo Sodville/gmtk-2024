@@ -44,6 +44,31 @@ func GetWeaponCooldown(weapon WeaponType) float64 {
 	}
 }
 
+func GetWeaponDamage(weapon WeaponType) int {
+	switch weapon {
+	case WeaponBow:
+		return 3
+	default:
+		return 2
+	}
+}
+
+func GetWeaponSpeed(weapon WeaponType) float32 {
+	switch weapon {
+	case WeaponBow:
+		return 3
+	default:
+		return 2
+	}
+}
+
+func GetWeaponFriendlyFire(weapon WeaponType) bool {
+	switch weapon {
+	default:
+		return false
+	}
+}
+
 func InitializeWeapons() {
 	for i := 1; i < int(WeaponCount); i ++ {
 		switch i {

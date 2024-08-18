@@ -35,6 +35,7 @@ type Bullet struct {
 	WeaponType  WeaponType
 	Speed       float32
 	GracePeriod float64
+	HurtsPlayer bool
 }
 
 type PlayerState struct {
