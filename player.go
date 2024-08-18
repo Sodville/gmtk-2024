@@ -28,28 +28,7 @@ func (p *Player) Draw(screen *ebiten.Image, camera Camera) {
 	op.GeoM.Translate(-camera.Offset.X, -camera.Offset.Y)
 
 	screen.DrawImage(p.Sprite, &op)
-
-	distance := 8.
-
-	op = ebiten.DrawImageOptions{}
-	op.GeoM.Translate(-distance, -distance)
-
-	if math.Pi*.5 < p.Rotation || p.Rotation < -math.Pi*.5 {
-		op.GeoM.Scale(1, -1)
-	}
-	op.GeoM.Rotate(p.Rotation)
-
-	op.GeoM.Translate(distance, distance)
-
-	x := math.Cos(p.Rotation)
-	y := math.Sin(p.Rotation)
-
-	op.GeoM.Translate(x*distance, y*distance)
-
-	op.GeoM.Translate(p.Position.X, p.Position.Y)
-	op.GeoM.Translate(-camera.Offset.X, -camera.Offset.Y)
-
-	screen.DrawImage(GetWeaponSprite(p.Weapon), &op)
+	DrawWeapon(screen, camera, p.Weapon, *p)
 }
 
 func (p *Player) Update(game *Game) {

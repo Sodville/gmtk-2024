@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -67,6 +68,31 @@ func GetWeaponFriendlyFire(weapon WeaponType) bool {
 	default:
 		return false
 	}
+}
+
+func DrawWeapon (screen *ebiten.Image, camera Camera, w WeaponType, player Player) {
+	// Half the size of sprite
+	distance := 8.
+
+	op := ebiten.DrawImageOptions{}
+	op.GeoM.Translate(-distance, -distance)
+
+	if math.Pi*.5 < player.Rotation || player.Rotation < -math.Pi*.5 {
+		op.GeoM.Scale(1, -1)
+	}
+	op.GeoM.Rotate(player.Rotation)
+
+	op.GeoM.Translate(distance, distance)
+
+	x := math.Cos(player.Rotation)
+	y := math.Sin(player.Rotation)
+
+	op.GeoM.Translate(x*distance, y*distance)
+
+	op.GeoM.Translate(player.Position.X, player.Position.Y)
+	op.GeoM.Translate(-camera.Offset.X, -camera.Offset.Y)
+
+	screen.DrawImage(GetWeaponSprite(player.Weapon), &op)
 }
 
 func InitializeWeapons() {
