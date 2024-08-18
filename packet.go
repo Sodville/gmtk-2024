@@ -33,9 +33,11 @@ type ReconcilliationData struct {
 	Name string
 }
 
-type ServerEvent struct {
-	State ServerStateData
-	Type  ServerEventType
+type Event struct {
+	Type  EventType
+
+	// these fields are considered unions and can be safely considered nil
+	Level LevelEnum
 }
 
 type ServerStateData struct {
@@ -61,6 +63,8 @@ const (
 	PacketTypeBulletStart
 	PacketTypePlayerHit
 	PacketTypeServerEvent
+	PacketTypeClientToggleReady
+	PacketTypeServerStateChanged
 )
 
 type NegotiationResponse struct {

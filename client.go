@@ -17,14 +17,16 @@ const MEDIATION_SERVERPORT = 8080
 type Client struct {
 	conn                *net.UDPConn
 	host_addr           net.UDPAddr
-	other_pos           CoordinateData
 	packet_channel      chan PacketData
 	player_states       map[string]PlayerState
 	player_states_mutex sync.RWMutex
 	bullets             []Bullet
 	bullets_mutex       sync.RWMutex
 	is_connected        bool
-	event_channel       chan ServerEvent
+	event_channel       chan Event
+	readyPlayersCount   uint
+	playerCount			uint
+	ServerState			ServerState
 
 	ID uint
 }
@@ -63,6 +65,29 @@ func (ps *PlayerState) GetInterpolatedPos() Position {
 	y := ps.PreviousPos.Y + float64(ps.FrameCount)/f*(ps.CurrentPos.Y-ps.PreviousPos.Y)
 
 	return Position{x, y}
+}
+
+func (c *Client) ToggleReady() {
+	packet := Packet{}
+	packet.PacketType = PacketTypeClientToggleReady
+
+	raw_data, err := SerializePacket(packet, Packet{}) // this second packet is dead
+	if err != nil {
+		fmt.Println("error serializing ready packet", err)
+	}
+
+	c.conn.WriteToUDP(raw_data, &c.host_addr)
+}
+
+func (c *Client) IsReady() bool {
+	for _, player := range c.player_states {
+		if c.IsSelf(player.Connection.Addr) {
+			return player.Connection.IsReady
+		}
+	}
+
+	fmt.Println("could not figure it out if we are ready")
+	return false
 }
 
 func (c *Client) IsSelf(addr net.UDPAddr) bool {
@@ -125,6 +150,17 @@ func (c *Client) SendPosition(pos Position, rotation float64, weapon WeaponType,
 	c.conn.WriteToUDP(raw_data, &c.host_addr)
 }
 
+func (c *Client) HandleServerState(state ServerState) {
+	if state.State == ServerStatePlaying {
+
+		event := Event{}
+		event.Type = NewLevelEvent
+		event.Level = state.Context.Level
+
+		go func() { c.event_channel <- event }()
+	}
+}
+
 func (c *Client) RunLocalClient() {
 	conn, err := net.ListenUDP("udp", nil)
 	c.conn = conn
@@ -157,7 +193,7 @@ func (c *Client) RunLocalClient() {
 	}
 
 	c.packet_channel = make(chan PacketData)
-	c.event_channel = make(chan ServerEvent)
+	c.event_channel = make(chan Event)
 
 	go c.listen()
 
@@ -225,9 +261,13 @@ func (c *Client) HandlePacket() {
 			}
 
 			c.player_states_mutex.Lock()
+			var readyPlayerCount uint = 0
 			for _, pConn := range connections {
 				id := pConn.Addr.String()
 				ps, ok := c.player_states[id]
+				if pConn.IsReady {
+					readyPlayerCount++
+				}
 				if ok {
 					ps.Connection = pConn
 					ps.PreviousPos = ps.CurrentPos
@@ -244,6 +284,9 @@ func (c *Client) HandlePacket() {
 					}
 				}
 			}
+			c.readyPlayersCount = readyPlayerCount
+			c.playerCount = uint(len(c.player_states))
+
 			c.player_states = states
 			c.player_states_mutex.Unlock()
 
@@ -253,8 +296,16 @@ func (c *Client) HandlePacket() {
 			c.host_addr = packet_data.Addr
 			fmt.Println(c.ID)
 
+		case PacketTypeServerStateChanged:
+			var state ServerState
+			_ = dec.Decode(&state)
+
+			fmt.Println("got new server state", state.State)
+			c.ServerState = state
+			c.HandleServerState(c.ServerState)
+
 		case PacketTypeServerEvent:
-			var event ServerEvent
+			var event Event
 			_ = dec.Decode(&event)
 
 			fmt.Println("got server event", event.Type)
@@ -301,7 +352,7 @@ func (c *Client) RunClient(server_ip string) {
 	}
 
 	c.packet_channel = make(chan PacketData)
-	c.event_channel = make(chan ServerEvent)
+	c.event_channel = make(chan Event)
 
 	go c.listen()
 

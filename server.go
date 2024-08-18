@@ -17,6 +17,8 @@ type ConnectedPlayer struct {
 	Rotation  float64
 	Weapon    WeaponType
 	IsRolling bool
+	IsReady   bool
+	TimeLastPacket uint64
 
 	// currently does not work
 	ID uint
@@ -26,12 +28,29 @@ type HitInfo struct {
 	Player ConnectedPlayer
 	Damage int
 }
-
-type ServerEventType uint
+type ServerStateType uint
 
 const (
-	ServerNewLevelEvent ServerEventType = iota + 1
+	ServerStateWaitingRoom ServerStateType = iota + 1
+	ServerStateStarting
+	ServerStateShopping
+	ServerStatePlaying
 )
+
+type EventType uint
+const (
+	NewLevelEvent EventType = iota + 1
+)
+
+type ServerStateContext struct {
+	Time time.Time
+	Level LevelEnum
+}
+
+type ServerState struct {
+	State ServerStateType
+	Context ServerStateContext
+}
 
 type Server struct {
 	mediation_server      net.UDPAddr
@@ -44,7 +63,7 @@ type Server struct {
 	bullets               []Bullet
 	bullets_mutex         sync.RWMutex
 	level                 *Level
-	event_channel         chan ServerEvent
+	State				  ServerState
 }
 
 func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {
@@ -97,38 +116,51 @@ func (s *Server) Broadcast(packet Packet, data any) {
 	s.connection_keys_mutex.RUnlock()
 }
 
-func (s *Server) ChangeLevel(levelType LevelEnum, when time.Time) {
-	packet := Packet{}
-	packet.PacketType = PacketTypeServerEvent
-
-	new_event := ServerEvent{ServerStateData{levelType, when}, ServerNewLevelEvent}
-	s.Broadcast(packet, new_event)
-
-	s.event_channel <- new_event
-}
-
-func (s *Server) StartChangeLevel(levelType LevelEnum, when time.Time) {
-	newLevel := Level{}
-	LoadLevel(&newLevel, levelType)
-
-	remaining := when.Sub(time.Now())
-
-	time.Sleep(time.Duration(remaining))
-	s.level = &newLevel
-
-	// reseting on map change
-	s.bullets = []Bullet{}
-}
-
-func (s *Server) HandleState() {
-	for {
-		select {
-		case event_data := <-s.event_channel:
-			switch event_data.Type {
-			case ServerNewLevelEvent:
-				go s.StartChangeLevel(event_data.State.LevelEnum, event_data.State.Timestamp)
+func (s *Server) AllReady() bool {
+	s.connection_keys_mutex.RLock()
+	allReady := true
+	for _, conn := range s.connection_keys {
+		player, ok := loadFromSyncMap[ConnectedPlayer](conn, &s.connections)
+		if ok {
+			if !player.IsReady {
+				allReady = false
 			}
 		}
+	}
+	s.connection_keys_mutex.RUnlock()
+
+	return allReady
+
+}
+
+func (s *Server) UpdateState() {
+	if s.State.State == ServerStateWaitingRoom {
+		if s.AllReady() {
+			s.State.State = ServerStateStarting
+			s.State.Context = ServerStateContext{}
+			s.State.Context.Time = time.Now().Add(time.Second * 2)
+		}
+	} else if s.State.State == ServerStateStarting {
+		if !s.AllReady() {
+			s.State.State = ServerStateWaitingRoom
+			s.State.Context = ServerStateContext{}
+			s.State.Context.Level = LobbyLevel
+		} else if s.State.Context.Time.Sub(time.Now()) <= 0 {
+			s.State.State = ServerStatePlaying
+			s.State.Context = ServerStateContext{}
+			s.State.Context.Level = LevelOne
+		}
+	}
+}
+
+func (s *Server) CheckState() {
+	oldState := s.State.State
+	s.UpdateState()
+
+	if oldState != s.State.State {
+		packet := Packet{}
+		packet.PacketType = PacketTypeServerStateChanged
+		s.Broadcast(packet, s.State)
 	}
 }
 
@@ -183,6 +215,8 @@ func (s *Server) Update() {
 	s.bullets_mutex.Lock()
 	s.bullets = bullets
 	s.bullets_mutex.Unlock()
+
+	s.CheckState()
 }
 
 // Note that calls of this method should be protected by write-locking connection_keys_mutex
@@ -220,12 +254,12 @@ func (s *Server) Host(mediation_server_ip string) {
 	}
 
 	s.packet_channel = make(chan PacketData)
-	s.event_channel = make(chan ServerEvent)
 
 	s.connections = sync.Map{}
 
+	s.State.State = ServerStateWaitingRoom
+
 	go s.listen()
-	go s.HandleState()
 
 	go func() {
 		for {
@@ -278,7 +312,16 @@ func (s *Server) Host(mediation_server_ip string) {
 
 				s.connection_keys_mutex.Lock()
 				// sync.Map (which is a struct) doesn't an equivalent method to len()
-				new_player := ConnectedPlayer{new_connection, Position{}, 0, 0, false, uint(len(s.connection_keys)) + 1}
+				new_player := ConnectedPlayer{
+					new_connection,
+					Position{},
+					0,
+					0,
+					false,
+					false,
+					packet_data.Packet.Timestamp,
+					uint(len(s.connection_keys)) + 1,
+				}
 				s.AddConnection(new_connection.String(), new_player)
 				s.connection_keys_mutex.Unlock()
 
@@ -314,7 +357,16 @@ func (s *Server) Host(mediation_server_ip string) {
 						break
 					}
 				}
-				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{packet_data.Addr, Position{}, 0, 0, false, uint(len(s.connection_keys)) + 1})
+				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{
+					packet_data.Addr,
+					Position{},
+					0,
+					0,
+					false,
+					false,
+					packet_data.Packet.Timestamp,
+					uint(len(s.connection_keys)) + 1},
+				)
 				s.connection_keys_mutex.Unlock()
 
 			case PacketTypeUpdateCurrentPlayer:
@@ -331,9 +383,17 @@ func (s *Server) Host(mediation_server_ip string) {
 					player.Rotation = playerUpdate.Rotation
 					player.Weapon = playerUpdate.Weapon
 					player.IsRolling = playerUpdate.isRolling
+					player.TimeLastPacket = packet_data.Packet.Timestamp
 
 					s.connections.Store(packet_data.Addr.String(), player)
 				}
+
+			case PacketTypeClientToggleReady:
+				player, ok := loadFromSyncMap[ConnectedPlayer](packet_data.Addr.String(), &s.connections)
+				if ok {
+					player.IsReady = !player.IsReady
+				}
+				s.connections.Store(packet_data.Addr.String(), player)
 
 			case PacketTypeBulletStart:
 				var bullet Bullet

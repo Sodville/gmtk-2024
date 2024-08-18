@@ -6,7 +6,6 @@ import (
 	"image"
 	"log"
 	"math"
-	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -20,6 +19,7 @@ const (
 	TILE_SIZE                   = 16
 	PLAYER_SPEED                = 2
 	SERVER_PLAYER_SYNC_DELAY_MS = 50
+	TOGGLECOOLDOWN = 30
 )
 
 var emptyImage = ebiten.NewImage(3, 3)
@@ -36,6 +36,7 @@ type Game struct {
 
 	Debris []Bullet
 
+	toggleCooldown int
 	event_handler_running bool
 }
 
@@ -81,6 +82,14 @@ func (g *Game) Update() error {
 	if ebiten.IsKeyPressed(ebiten.Key3) {
 		g.Player.Weapon = WeaponGun
 	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyR) && g.toggleCooldown == 0 {
+		g.Client.ToggleReady()
+		g.toggleCooldown = TOGGLECOOLDOWN
+	}
+
+	// we don't really care if it's frames or MS as it's not related to gameplay
+	g.toggleCooldown = max(0, g.toggleCooldown - 1)
 
 	rotation := CalculateOrientationRads(g.Camera, g.Player.GetCenter())
 	g.Player.Rotation = rotation
@@ -177,9 +186,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	screen.DrawImage(g.Level.MapImage, g.Camera.GetCameraDrawOptions())
 
-	tps := ebiten.ActualTPS()
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("TPS: %f", tps))
-
 	g.Player.Draw(screen, g.Camera)
 
 	g.Client.player_states_mutex.RLock()
@@ -187,6 +193,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if g.Client.IsSelf(state.Connection.Addr) {
 			continue
 		}
+
+
 		op := ebiten.DrawImageOptions{}
 		if state.MoveDuration > 0 {
 			op.GeoM.Translate(-8, -8)
@@ -264,19 +272,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, spark := range g.Sparks {
 		spark.Draw(screen, &g.Camera)
 	}
+
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d", g.Client.readyPlayersCount, g.Client.playerCount))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return SCREEN_WIDTH, SCREEN_HEIGHT
 }
 
-func (g *Game) StartChangeLevel(levelType LevelEnum, when time.Time) {
+func (g *Game) ChangeLevel(levelType LevelEnum) {
 	newLevel := Level{}
 	LoadLevel(&newLevel, levelType)
 
-	remaining := when.Sub(time.Now())
-
-	time.Sleep(time.Duration(remaining))
 	g.Level = &newLevel
 
 	// reseting on map change
@@ -295,8 +302,8 @@ func (g *Game) HandleEvent() {
 		case event_data := <-g.Client.event_channel:
 			fmt.Println("handling event")
 			switch event_data.Type {
-			case ServerNewLevelEvent:
-				go g.StartChangeLevel(event_data.State.LevelEnum, event_data.State.Timestamp)
+			case NewLevelEvent:
+				g.ChangeLevel(event_data.Level)
 			}
 		}
 	}
