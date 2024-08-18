@@ -221,9 +221,9 @@ func (s *Server) Host(mediation_server_ip string) {
 			keepAlivePacket.PacketType = PacketTypeKeepAlive
 			serialized_packet, _ := SerializePacket(keepAlivePacket, ReconcilliationData{"keepalive"})
 
-			_, err = conn.WriteToUDP(serialized_packet, &s.mediation_server)
-			if err != nil {
-				fmt.Println("something went wrong when reaching out to match", err)
+			_, error := conn.WriteToUDP(serialized_packet, &s.mediation_server)
+			if error != nil {
+				fmt.Println("something went wrong when reaching out to match", error)
 			}
 			if s.started {
 				return
@@ -259,7 +259,7 @@ func (s *Server) Host(mediation_server_ip string) {
 			switch packet_data.Packet.PacketType {
 			case PacketTypeMatchConnect:
 				var new_connection net.UDPAddr
-				err = dec.Decode(&new_connection)
+				dec.Decode(&new_connection)
 
 				// sync.Map (which is a struct) doesn't an equivalent method to len()
 				new_player := ConnectedPlayer{new_connection, Position{}, uint(len(s.connection_keys)) + 1}
@@ -269,14 +269,14 @@ func (s *Server) Host(mediation_server_ip string) {
 				negotiatePacket.PacketType = PacketTypeNegotiate
 				data := new_player.ID
 
-				raw_data, err := SerializePacket(negotiatePacket, data)
-				if err != nil {
-					fmt.Println("error serializing packet", err)
+				raw_data, error := SerializePacket(negotiatePacket, data)
+				if error != nil {
+					fmt.Println("error serializing packet", error)
 				}
 
-				_, err = conn.WriteToUDP(raw_data, &new_connection)
-				if err != nil {
-					fmt.Println("something went wrong when reaching out to match", err)
+				_, error = conn.WriteToUDP(raw_data, &new_connection)
+				if error != nil {
+					fmt.Println("something went wrong when reaching out to match", error)
 				}
 
 				fmt.Println("got new connection with id ", data)
@@ -284,7 +284,7 @@ func (s *Server) Host(mediation_server_ip string) {
 
 			case PacketTypeNegotiate:
 				var inner_data ReconcilliationData
-				err = dec.Decode(&inner_data)
+				dec.Decode(&inner_data)
 
 				// if we get this packet there is a presumption that we have already
 				// broken through the NAT address by sending a packet to said address.
@@ -300,9 +300,9 @@ func (s *Server) Host(mediation_server_ip string) {
 
 			case PacketTypePositition:
 				var position Position
-				err = dec.Decode(&position)
-				if err != nil {
-					fmt.Println("error decoding position: ", err)
+				error := dec.Decode(&position)
+				if error != nil {
+					fmt.Println("error decoding position: ", error)
 					fmt.Println("packet: ", packet_data.Packet)
 					fmt.Println("packet: ", packet_data.Data)
 					continue
