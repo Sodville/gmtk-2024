@@ -12,10 +12,10 @@ import (
 )
 
 type ConnectedPlayer struct {
-	Addr     net.UDPAddr
-	Position Position
-	Rotation float64
-	Weapon   WeaponType
+	Addr      net.UDPAddr
+	Position  Position
+	Rotation  float64
+	Weapon    WeaponType
 	IsRolling bool
 
 	// currently does not work
@@ -34,16 +34,17 @@ const (
 )
 
 type Server struct {
-	mediation_server     net.UDPAddr
-	conn                 *net.UDPConn
-	connection_keys      []string
-	connections          sync.Map
-	packet_channel       chan PacketData
-	started              bool
-	bullets              []Bullet
-	level                *Level
-	packet_channel_mutex sync.Mutex
-	event_channel        chan ServerEvent
+	mediation_server      net.UDPAddr
+	conn                  *net.UDPConn
+	connection_keys       []string
+	connection_keys_mutex sync.RWMutex
+	connections           sync.Map
+	packet_channel        chan PacketData
+	packet_channel_mutex  sync.Mutex
+	started               bool
+	bullets               []Bullet
+	level                 *Level
+	event_channel         chan ServerEvent
 }
 
 func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {
@@ -81,6 +82,7 @@ func (s *Server) listen() {
 }
 
 func (s *Server) Broadcast(packet Packet, data any) {
+	s.connection_keys_mutex.RLock()
 	for _, value := range s.connection_keys {
 		raw_data, err := SerializePacket(packet, data)
 		if err != nil {
@@ -92,6 +94,7 @@ func (s *Server) Broadcast(packet Packet, data any) {
 			s.conn.WriteToUDP(raw_data, &player.Addr)
 		}
 	}
+	s.connection_keys_mutex.RUnlock()
 }
 
 func (s *Server) ChangeLevel(levelType LevelEnum, when time.Time) {
@@ -178,6 +181,7 @@ func (s *Server) Update() {
 	s.bullets = bullets
 }
 
+// Note that calls of this method should be protected by write-locking connection_keys_mutex
 func (s *Server) AddConnection(key string, new_connection ConnectedPlayer) {
 	for _, value := range s.connection_keys {
 		if key == value {
@@ -246,12 +250,14 @@ func (s *Server) Host(mediation_server_ip string) {
 
 			connected_player_list := []ConnectedPlayer{}
 
+			s.connection_keys_mutex.RLock()
 			for _, key := range s.connection_keys {
 				value, ok := loadFromSyncMap[ConnectedPlayer](key, &s.connections)
 				if ok {
 					connected_player_list = append(connected_player_list, value)
 				}
 			}
+			s.connection_keys_mutex.RUnlock()
 
 			s.Broadcast(updatePlayerPacket, connected_player_list)
 		}
@@ -260,16 +266,17 @@ func (s *Server) Host(mediation_server_ip string) {
 	for {
 		select {
 		case packet_data := <-s.packet_channel:
-			s.packet_channel_mutex.Lock()
 			dec := gob.NewDecoder(bytes.NewReader(packet_data.Data))
 			switch packet_data.Packet.PacketType {
 			case PacketTypeMatchConnect:
 				var new_connection net.UDPAddr
 				dec.Decode(&new_connection)
 
+				s.connection_keys_mutex.Lock()
 				// sync.Map (which is a struct) doesn't an equivalent method to len()
 				new_player := ConnectedPlayer{new_connection, Position{}, 0, 0, false, uint(len(s.connection_keys)) + 1}
 				s.AddConnection(new_connection.String(), new_player)
+				s.connection_keys_mutex.Unlock()
 
 				negotiatePacket := Packet{}
 				negotiatePacket.PacketType = PacketTypeNegotiate
@@ -297,16 +304,18 @@ func (s *Server) Host(mediation_server_ip string) {
 
 				// therefore we can safely assume that the incomming packet is from the owner we want to connect with
 				// and then we can set the owner of the packet to our desired target address to assert the case
+				s.connection_keys_mutex.Lock()
 				for _, key := range s.connection_keys {
 					if packet_data.Addr.String() == key {
 						break
 					}
 				}
 				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{packet_data.Addr, Position{}, 0, 0, false, uint(len(s.connection_keys)) + 1})
+				s.connection_keys_mutex.Unlock()
 
 			case PacketTypeUpdateCurrentPlayer:
 				var playerUpdate PlayerUpdateData
-				decode_err := dec.Decode(&playerUpdate )
+				decode_err := dec.Decode(&playerUpdate)
 				if decode_err != nil {
 					fmt.Println("error decoding player update: ", decode_err)
 					continue
@@ -342,6 +351,5 @@ func (s *Server) Host(mediation_server_ip string) {
 				fmt.Println("something went wrong when reaching out to match", err)
 			}
 		}
-		s.packet_channel_mutex.Unlock()
 	}
 }
