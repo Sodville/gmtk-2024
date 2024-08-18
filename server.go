@@ -508,17 +508,6 @@ func (s *Server) Host(mediation_server_ip string) {
 				s.bullets = append(s.bullets, bullet)
 				s.bullets_mutex.Unlock()
 			}
-		case <-time.After(5 * time.Second):
-			packet = Packet{}
-			packet.PacketType = PacketTypeKeepAlive
-			data = ReconcilliationData{"keepalive"}
-
-			serialized_packet, _ := SerializePacket(packet, data)
-
-			_, err = conn.WriteToUDP(serialized_packet, &s.mediation_server)
-			if err != nil {
-				fmt.Println("something went wrong when reaching out to match", err)
-			}
 		}
 	}
 }
