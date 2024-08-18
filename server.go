@@ -40,9 +40,9 @@ type Server struct {
 	connection_keys_mutex sync.RWMutex
 	connections           sync.Map
 	packet_channel        chan PacketData
-	packet_channel_mutex  sync.Mutex
 	started               bool
 	bullets               []Bullet
+	bullets_mutex         sync.RWMutex
 	level                 *Level
 	event_channel         chan ServerEvent
 }
@@ -135,6 +135,7 @@ func (s *Server) HandleState() {
 func (s *Server) Update() {
 	bullets := []Bullet{}
 
+	s.bullets_mutex.RLock()
 	for _, bullet := range s.bullets {
 		radians := bullet.Rotation
 		x := math.Cos(radians)
@@ -178,7 +179,10 @@ func (s *Server) Update() {
 			bullets = append(bullets, bullet)
 		}
 	}
+	s.bullets_mutex.RUnlock()
+	s.bullets_mutex.Lock()
 	s.bullets = bullets
+	s.bullets_mutex.Unlock()
 }
 
 // Note that calls of this method should be protected by write-locking connection_keys_mutex
@@ -337,7 +341,9 @@ func (s *Server) Host(mediation_server_ip string) {
 				s.Broadcast(packet_data.Packet, bullet)
 
 				bullet.GracePeriod = 1.5
+				s.bullets_mutex.Lock()
 				s.bullets = append(s.bullets, bullet)
+				s.bullets_mutex.Unlock()
 			}
 		case <-time.After(5 * time.Second):
 			packet = Packet{}

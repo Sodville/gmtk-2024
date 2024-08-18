@@ -52,8 +52,8 @@ type Player struct {
 	Speed        float64
 	Sprite       *ebiten.Image
 	MoveDuration int
-	Weapon		 WeaponType
-	Rotation	 float64
+	Weapon       WeaponType
+	Rotation     float64
 
 	ShootCooldown float64
 }
@@ -150,8 +150,9 @@ func (g *Game) Update() error {
 		g.Player.ShootCooldown = GetWeaponCooldown(g.Player.Weapon)
 	}
 
-	g.Player.ShootCooldown = max(0, g.Player.ShootCooldown - .16)
+	g.Player.ShootCooldown = max(0, g.Player.ShootCooldown-.16)
 
+	g.Client.bullets_mutex.Lock()
 	for i, bullet := range g.Client.bullets {
 		x := math.Cos(bullet.Rotation)
 		y := math.Sin(bullet.Rotation)
@@ -182,6 +183,7 @@ func (g *Game) Update() error {
 		}
 	}
 	g.Client.bullets = bullets
+	g.Client.bullets_mutex.Unlock()
 
 	states := make(map[string]PlayerState)
 	for key, state := range g.Client.player_states {
@@ -237,7 +239,7 @@ func (p *Player) Draw(screen *ebiten.Image, camera Camera) {
 	op = ebiten.DrawImageOptions{}
 	op.GeoM.Translate(-distance, -distance)
 
-	if math.Pi * .5 < p.Rotation || p.Rotation < -math.Pi * .5 {
+	if math.Pi*.5 < p.Rotation || p.Rotation < -math.Pi*.5 {
 		op.GeoM.Scale(1, -1)
 	}
 	op.GeoM.Rotate(p.Rotation)
@@ -247,7 +249,7 @@ func (p *Player) Draw(screen *ebiten.Image, camera Camera) {
 	x := math.Cos(p.Rotation)
 	y := math.Sin(p.Rotation)
 
-	op.GeoM.Translate(x * distance, y * distance)
+	op.GeoM.Translate(x*distance, y*distance)
 
 	op.GeoM.Translate(p.Position.X, p.Position.Y)
 	op.GeoM.Translate(-camera.Offset.X, -camera.Offset.Y)
@@ -362,7 +364,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		op = ebiten.DrawImageOptions{}
 		op.GeoM.Translate(-distance, -distance)
 
-		if math.Pi * .5 < state.Connection.Rotation || state.Connection.Rotation < -math.Pi * .5 {
+		if math.Pi*.5 < state.Connection.Rotation || state.Connection.Rotation < -math.Pi*.5 {
 			op.GeoM.Scale(1, -1)
 		}
 		op.GeoM.Rotate(state.Connection.Rotation)
@@ -372,7 +374,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		x := math.Cos(state.Connection.Rotation)
 		y := math.Sin(state.Connection.Rotation)
 
-		op.GeoM.Translate(x * distance, y * distance)
+		op.GeoM.Translate(x*distance, y*distance)
 
 		op.GeoM.Translate(RenderPos.X, RenderPos.Y)
 		op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
@@ -380,6 +382,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		screen.DrawImage(GetWeaponSprite(state.Connection.Weapon), &op)
 	}
 
+	g.Client.bullets_mutex.RLock()
 	for _, bullet := range g.Client.bullets {
 		sprite := GetBulletSprite(bullet.WeaponType)
 
@@ -415,6 +418,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		screen.DrawImage(sprite, &op)
 	}
+	g.Client.bullets_mutex.RUnlock()
 
 	for _, spark := range g.Sparks {
 		spark.Draw(screen, &g.Camera)

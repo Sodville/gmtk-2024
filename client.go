@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,6 +21,7 @@ type Client struct {
 	packet_channel chan PacketData
 	player_states  map[string]PlayerState
 	bullets        []Bullet
+	bullets_mutex  sync.RWMutex
 	is_connected   bool
 	event_channel  chan ServerEvent
 
@@ -44,9 +46,9 @@ type PlayerState struct {
 }
 
 type PlayerUpdateData struct {
-	Position Position
-	Rotation float64
-	Weapon WeaponType
+	Position  Position
+	Rotation  float64
+	Weapon    WeaponType
 	isRolling bool
 }
 
@@ -108,12 +110,12 @@ func (c *Client) SendPosition(pos Position, rotation float64, weapon WeaponType,
 	packet.PacketType = PacketTypeUpdateCurrentPlayer
 
 	raw_data, err := SerializePacket(packet,
-	PlayerUpdateData{
-		pos,
-		rotation,
-		weapon,
-		isRolling,
-	})
+		PlayerUpdateData{
+			pos,
+			rotation,
+			weapon,
+			isRolling,
+		})
 	if err != nil {
 		fmt.Println("error serializing coordinate packet", err)
 	}
@@ -194,8 +196,9 @@ func (c *Client) HandlePacket() {
 			if err != nil {
 				fmt.Println("something went wrong decoding bullet", err)
 			}
-
+			c.bullets_mutex.Lock()
 			c.bullets = append(c.bullets, bullet)
+			c.bullets_mutex.Unlock()
 
 		case PacketTypePlayerHit:
 			var hitInfo HitInfo
