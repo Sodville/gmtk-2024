@@ -321,7 +321,7 @@ func main() {
 	}
 
 	level := Level{}
-	LoadLevel(&level, LevelOne)
+	LoadLevel(&level, LobbyLevel)
 
 	ebiten.SetWindowSize(RENDER_WIDTH, RENDER_HEIGHT)
 	ebiten.SetWindowTitle("Hello, World!")
