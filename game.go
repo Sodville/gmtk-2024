@@ -277,13 +277,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	g.Player.Draw(screen, g.Camera)
 
-	for _, connection := range g.Client.connections {
-		if g.Client.IsSelf(connection.Addr) {
+	for _, state := range g.Client.player_states {
+		if g.Client.IsSelf(state.Connection.Addr) {
 			continue
 		}
-		op := g.Camera.GetCameraDrawOptions()
-		op.GeoM.Translate(connection.Position.X, connection.Position.Y)
-		screen.DrawImage(g.Player.Sprite, op)
+		op := ebiten.DrawImageOptions{}
+		if state.MoveDuration > 0 {
+			op.GeoM.Translate(-8, -8)
+			op.GeoM.Rotate(math.Sin(float64(state.MoveDuration/5)) * 0.2)
+			op.GeoM.Translate(8, 8)
+		}
+		op.GeoM.Translate(state.Connection.Position.X, state.Connection.Position.Y)
+		op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
+		screen.DrawImage(g.Player.Sprite, &op)
 	}
 
 	for _, bullet := range g.Client.bullets {

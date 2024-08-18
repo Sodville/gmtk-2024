@@ -18,7 +18,7 @@ type Client struct {
 	host_addr      net.UDPAddr
 	other_pos      CoordinateData
 	packet_channel chan PacketData
-	connections    []ConnectedPlayer
+	player_states  map[string]PlayerState
 	bullets        []Bullet
 	is_connected   bool
 
@@ -30,6 +30,11 @@ type Bullet struct {
 	Rotation    float64
 	Speed       float32
 	GracePeriod float64
+}
+
+type PlayerState struct {
+	Connection   ConnectedPlayer
+	MoveDuration int
 }
 
 func (c *Client) IsSelf(addr net.UDPAddr) bool {
@@ -175,11 +180,35 @@ func (c *Client) HandlePacket() {
 			}
 
 		case PacketTypeUpdatePlayers:
-			err := dec.Decode(&c.connections)
+			var connections []ConnectedPlayer
+			states := make(map[string]PlayerState)
+			err := dec.Decode(&connections)
 
 			if err != nil {
-				fmt.Println("somethign went wrong when upating connections", err)
+				fmt.Println("something went wrong when updating connections", err)
 			}
+
+			for _, pConn := range connections {
+				id := pConn.Addr.String()
+				ps, ok := c.player_states[id]
+				if ok {
+					if ps.Connection.Position != pConn.Position {
+						ps.MoveDuration += 1
+					} else {
+						ps.MoveDuration = ps.MoveDuration % 30
+						ps.MoveDuration = max(0, ps.MoveDuration-1)
+					}
+					ps.Connection = pConn
+					states[id] = ps
+				} else {
+					states[pConn.Addr.String()] = PlayerState{
+						Connection:   pConn,
+						MoveDuration: 0,
+					}
+				}
+
+			}
+			c.player_states = states
 
 		case PacketTypeNegotiate:
 			_ = dec.Decode(&c.ID)
