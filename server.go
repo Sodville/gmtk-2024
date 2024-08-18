@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"maps"
+	"log"
 	"math"
 	"net"
 	"sync"
@@ -34,13 +34,29 @@ type Server struct {
 	mediation_server     net.UDPAddr
 	conn                 *net.UDPConn
 	connection_keys      []string
-	connections          map[string]ConnectedPlayer
+	connections          sync.Map
 	packet_channel       chan PacketData
 	started              bool
 	bullets              []Bullet
 	level                *Level
 	packet_channel_mutex sync.Mutex
 	event_channel        chan ServerEvent
+}
+
+func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {
+	anyValue, ok := syncMap.Load(key)
+	if ok {
+		value, ok := anyValue.(T)
+		if ok {
+			return value, true
+		} else {
+			log.Printf("loaded something that wasn't a %T from sync.Map!\n", value)
+			return value, false
+		}
+	} else {
+		log.Println("server tried to load non-present key from syncMap")
+		return value, false
+	}
 }
 
 func (s *Server) listen() {
@@ -62,16 +78,16 @@ func (s *Server) listen() {
 }
 
 func (s *Server) Broadcast(packet Packet, data any) {
-	connections := make(map[string]ConnectedPlayer)
-	maps.Copy(connections, s.connections)
 	for _, value := range s.connection_keys {
-		value := connections[value]
 		raw_data, err := SerializePacket(packet, data)
 		if err != nil {
 			fmt.Println("error serializing packet in Broadcast", err)
 		}
 
-		s.conn.WriteToUDP(raw_data, &value.Addr)
+		player, ok := loadFromSyncMap[ConnectedPlayer](value, &s.connections)
+		if ok {
+			s.conn.WriteToUDP(raw_data, &player.Addr)
+		}
 	}
 }
 
@@ -109,8 +125,6 @@ func (s *Server) HandleState() {
 
 func (s *Server) Update() {
 	bullets := []Bullet{}
-	connections := make(map[string]ConnectedPlayer)
-	maps.Copy(connections, s.connections)
 
 	for _, bullet := range s.bullets {
 		radians := bullet.Rotation
@@ -126,18 +140,25 @@ func (s *Server) Update() {
 		should_remove := false
 
 		if bullet.GracePeriod == 0 {
-			for _, player := range connections {
-				if bullet.Position.X < player.Position.X+TILE_SIZE &&
-					bullet.Position.X+4 > player.Position.X && // 4 is width
-					bullet.Position.Y < player.Position.Y+TILE_SIZE &&
-					bullet.Position.Y+4 > player.Position.Y { // 4 is height
-					packet := Packet{}
-					packet.PacketType = PacketTypePlayerHit
+			s.connections.Range(func(key, value any) bool {
+				player, ok := value.(ConnectedPlayer)
+				if ok {
+					if bullet.Position.X < player.Position.X+TILE_SIZE &&
+						bullet.Position.X+4 > player.Position.X && // 4 is width
+						bullet.Position.Y < player.Position.Y+TILE_SIZE &&
+						bullet.Position.Y+4 > player.Position.Y { // 4 is height
+						packet := Packet{}
+						packet.PacketType = PacketTypePlayerHit
 
-					s.Broadcast(packet, HitInfo{player, 20}) // TODO: fix damage etc.
-					should_remove = true
+						s.Broadcast(packet, HitInfo{player, 20}) // TODO: fix damage etc.
+						should_remove = true
+					}
+				} else {
+					log.Println("found something that wasn't a ConnectedPlayer iterating over sync.Map!")
 				}
-			}
+				// Iteration will stop if the function returns false for an element
+				return true
+			})
 		}
 
 		if collision_object != nil {
@@ -158,7 +179,7 @@ func (s *Server) AddConnection(key string, new_connection ConnectedPlayer) {
 		}
 	}
 	s.connection_keys = append(s.connection_keys, key)
-	s.connections[key] = new_connection
+	s.connections.Store(key, new_connection)
 }
 
 func (s *Server) Host(mediation_server_ip string) {
@@ -187,7 +208,7 @@ func (s *Server) Host(mediation_server_ip string) {
 	s.packet_channel = make(chan PacketData)
 	s.event_channel = make(chan ServerEvent)
 
-	s.connections = make(map[string]ConnectedPlayer)
+	s.connections = sync.Map{}
 
 	go s.listen()
 	go s.HandleState()
@@ -219,12 +240,11 @@ func (s *Server) Host(mediation_server_ip string) {
 
 			connected_player_list := []ConnectedPlayer{}
 
-			connections := make(map[string]ConnectedPlayer)
-			maps.Copy(connections, s.connections)
-
 			for _, key := range s.connection_keys {
-				value := connections[key]
-				connected_player_list = append(connected_player_list, value)
+				value, ok := loadFromSyncMap[ConnectedPlayer](key, &s.connections)
+				if ok {
+					connected_player_list = append(connected_player_list, value)
+				}
 			}
 
 			s.Broadcast(packet, connected_player_list)
@@ -241,7 +261,8 @@ func (s *Server) Host(mediation_server_ip string) {
 				var new_connection net.UDPAddr
 				err = dec.Decode(&new_connection)
 
-				new_player := ConnectedPlayer{new_connection, Position{}, uint(len(s.connections)) + 1}
+				// sync.Map (which is a struct) doesn't an equivalent method to len()
+				new_player := ConnectedPlayer{new_connection, Position{}, uint(len(s.connection_keys)) + 1}
 				s.AddConnection(new_connection.String(), new_player)
 
 				packet = Packet{}
@@ -259,7 +280,7 @@ func (s *Server) Host(mediation_server_ip string) {
 				}
 
 				fmt.Println("got new connection with id ", data)
-				fmt.Println("connections: ", s.connections)
+				fmt.Println("connections: ", &s.connections)
 
 			case PacketTypeNegotiate:
 				var inner_data ReconcilliationData
@@ -275,7 +296,7 @@ func (s *Server) Host(mediation_server_ip string) {
 						break
 					}
 				}
-				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{packet_data.Addr, Position{}, uint(len(s.connections)) + 1})
+				s.AddConnection(packet_data.Addr.String(), ConnectedPlayer{packet_data.Addr, Position{}, uint(len(s.connection_keys)) + 1})
 
 			case PacketTypePositition:
 				var position Position
@@ -286,9 +307,11 @@ func (s *Server) Host(mediation_server_ip string) {
 					fmt.Println("packet: ", packet_data.Data)
 					continue
 				}
-				player := s.connections[packet_data.Addr.String()]
-				player.Position = position
-				s.connections[packet_data.Addr.String()] = player
+				player, ok := loadFromSyncMap[ConnectedPlayer](packet_data.Addr.String(), &s.connections)
+				if ok {
+					player.Position = position
+					s.connections.Store(packet_data.Addr.String(), player)
+				}
 
 			case PacketTypeBulletStart:
 				var bullet Bullet
