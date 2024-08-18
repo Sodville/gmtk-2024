@@ -15,15 +15,16 @@ const SERVERPORT = 8081
 const MEDIATION_SERVERPORT = 8080
 
 type Client struct {
-	conn           *net.UDPConn
-	host_addr      net.UDPAddr
-	other_pos      CoordinateData
-	packet_channel chan PacketData
-	player_states  map[string]PlayerState
-	bullets        []Bullet
-	bullets_mutex  sync.RWMutex
-	is_connected   bool
-	event_channel  chan ServerEvent
+	conn                *net.UDPConn
+	host_addr           net.UDPAddr
+	other_pos           CoordinateData
+	packet_channel      chan PacketData
+	player_states       map[string]PlayerState
+	player_states_mutex sync.RWMutex
+	bullets             []Bullet
+	bullets_mutex       sync.RWMutex
+	is_connected        bool
+	event_channel       chan ServerEvent
 
 	ID uint
 }
@@ -222,6 +223,7 @@ func (c *Client) HandlePacket() {
 				fmt.Println("something went wrong when updating connections", err)
 			}
 
+			c.player_states_mutex.Lock()
 			for _, pConn := range connections {
 				id := pConn.Addr.String()
 				ps, ok := c.player_states[id]
@@ -242,6 +244,7 @@ func (c *Client) HandlePacket() {
 				}
 			}
 			c.player_states = states
+			c.player_states_mutex.Unlock()
 
 		case PacketTypeNegotiate:
 			_ = dec.Decode(&c.ID)

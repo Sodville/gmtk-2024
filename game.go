@@ -186,6 +186,7 @@ func (g *Game) Update() error {
 	g.Client.bullets_mutex.Unlock()
 
 	states := make(map[string]PlayerState)
+	g.Client.player_states_mutex.Lock()
 	for key, state := range g.Client.player_states {
 		if g.Client.IsSelf(state.Connection.Addr) {
 			states[key] = state
@@ -206,6 +207,7 @@ func (g *Game) Update() error {
 	}
 
 	g.Client.player_states = states
+	g.Client.player_states_mutex.Unlock()
 
 	sparks := []Spark{}
 	for _, spark := range g.Sparks {
@@ -343,6 +345,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	g.Player.Draw(screen, g.Camera)
 
+	g.Client.player_states_mutex.RLock()
 	for _, state := range g.Client.player_states {
 		if g.Client.IsSelf(state.Connection.Addr) {
 			continue
@@ -381,6 +384,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		screen.DrawImage(GetWeaponSprite(state.Connection.Weapon), &op)
 	}
+	g.Client.player_states_mutex.RUnlock()
 
 	g.Client.bullets_mutex.RLock()
 	for _, bullet := range g.Client.bullets {
