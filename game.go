@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"log"
 	"math"
+	"time"
 
 	"github.com/lafriks/go-tiled"
 	"github.com/lafriks/go-tiled/render"
@@ -31,6 +32,7 @@ type LevelEnum uint
 const (
 	LobbyLevel LevelEnum = iota
 	LevelOne
+	LevelCount
 )
 
 var emptyImage = ebiten.NewImage(3, 3)
@@ -72,6 +74,8 @@ type Game struct {
 	Level      *Level
 	Camera     Camera
 	Sparks     []Spark
+
+	event_handler_running bool
 }
 
 func GetSpriteByID(ID int) *ebiten.Image {
@@ -104,6 +108,10 @@ func (g *Game) Update() error {
 
 	if g.Server != nil {
 		g.Server.Update()
+	}
+
+	if g.event_handler_running == false {
+		go g.HandleEvent()
 	}
 
 	if g.Client.is_connected && (g.FrameCount%3 == 0) {
@@ -307,6 +315,34 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 	return SCREEN_WIDTH, SCREEN_HEIGHT
 }
 
+func (g *Game) StartChangeLevel(levelType LevelEnum, when time.Time) {
+	newLevel := Level{}
+	LoadLevel(&newLevel, levelType)
+
+	remaining := when.Sub(time.Now())
+
+	time.Sleep(time.Duration(remaining))
+	g.Level = &newLevel
+
+	if g.Level.Spawn != nil {
+		g.Player.Position = Position{g.Level.Spawn.X, g.Level.Spawn.Y}
+	}
+}
+
+func (g* Game) HandleEvent() {
+	g.event_handler_running = true
+	for {
+		select {
+		case event_data := <-g.Client.event_channel:
+			fmt.Println("handling event")
+			switch event_data.Type {
+			case ServerNewLevelEvent:
+				go g.StartChangeLevel(event_data.State.LevelEnum, event_data.State.Timestamp)
+			}
+		}
+	}
+}
+
 func main() {
 	is_server := flag.String("server", "y", "run server")
 	is_host := flag.String("host", "n", "host")
@@ -359,6 +395,9 @@ func LoadLevel(level *Level, levelType LevelEnum) {
 		if err != nil {
 			panic(err)
 		}
+	case LevelCount:
+		panic("do not use LEVEL COUNT as level")
+
 	default:
 		_gameMap, err := tiled.LoadFile(fmt.Sprintf("assets/Tiled/level_%d.tmx", levelType))
 		gameMap = _gameMap

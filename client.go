@@ -21,6 +21,7 @@ type Client struct {
 	player_states  map[string]PlayerState
 	bullets        []Bullet
 	is_connected   bool
+	event_channel		 chan ServerEvent
 
 	ID uint
 }
@@ -123,6 +124,7 @@ func (c *Client) RunLocalClient() {
 	}
 
 	c.packet_channel = make(chan PacketData)
+	c.event_channel = make(chan ServerEvent)
 
 	go c.listen()
 
@@ -215,6 +217,14 @@ func (c *Client) HandlePacket() {
 
 			c.host_addr = packet_data.Addr
 			fmt.Println(c.ID)
+
+		case PacketTypeServerEvent:
+			var event ServerEvent
+			_ = dec.Decode(&event)
+
+			fmt.Println("got server event", event.Type)
+			go func() {c.event_channel <- event}()
+
 		}
 
 	case <-time.After(5 * time.Second):
@@ -256,6 +266,7 @@ func (c *Client) RunClient(server_ip string) {
 	}
 
 	c.packet_channel = make(chan PacketData)
+	c.event_channel = make(chan ServerEvent)
 
 	go c.listen()
 

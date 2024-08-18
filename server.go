@@ -24,6 +24,11 @@ type HitInfo struct {
 	Damage int
 }
 
+type ServerEventType uint
+const (
+	ServerNewLevelEvent ServerEventType = iota + 1
+)
+
 type Server struct {
 	mediation_server     net.UDPAddr
 	conn                 *net.UDPConn
@@ -34,6 +39,7 @@ type Server struct {
 	bullets              []Bullet
 	level                *Level
 	packet_channel_mutex sync.Mutex
+	event_channel		 chan ServerEvent
 }
 
 func (s *Server) listen() {
@@ -57,13 +63,46 @@ func (s *Server) listen() {
 func (s *Server) Broadcast(packet Packet, data any) {
 	connections := make(map[string]ConnectedPlayer)
 	maps.Copy(connections, s.connections)
-	for _, value := range connections {
+	for _, value := range s.connection_keys {
+		value  := connections[value]
 		raw_data, err := SerializePacket(packet, data)
 		if err != nil {
 			fmt.Println("error serializing packet in Broadcast", err)
 		}
 
 		s.conn.WriteToUDP(raw_data, &value.Addr)
+	}
+}
+
+func (s *Server) ChangeLevel(levelType LevelEnum, when time.Time) {
+	packet := Packet{}
+	packet.PacketType = PacketTypeServerEvent
+
+	new_event := ServerEvent{ServerStateData{levelType, when}, ServerNewLevelEvent}
+	s.Broadcast(packet, new_event)
+
+	s.event_channel <- new_event
+}
+
+func (s *Server) StartChangeLevel(levelType LevelEnum, when time.Time) {
+	newLevel := Level{}
+	LoadLevel(&newLevel, levelType)
+
+	remaining := when.Sub(time.Now())
+
+	time.Sleep(time.Duration(remaining))
+	s.level = &newLevel
+}
+
+func (s *Server) HandleState() {
+	for {
+		select {
+		case event_data := <-s.event_channel:
+			switch event_data.Type {
+			case ServerNewLevelEvent:
+				go s.StartChangeLevel(event_data.State.LevelEnum, event_data.State.Timestamp)
+			}
+		}
 	}
 }
 
@@ -140,10 +179,12 @@ func (s *Server) Host(mediation_server_ip string) {
 	}
 
 	s.packet_channel = make(chan PacketData)
+	s.event_channel = make(chan ServerEvent)
 
 	s.connections = make(map[string]ConnectedPlayer)
 
 	go s.listen()
+	go s.HandleState()
 
 	go func() {
 		for {

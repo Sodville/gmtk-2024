@@ -33,6 +33,16 @@ type ReconcilliationData struct {
 	Name string
 }
 
+type ServerEvent struct {
+	State ServerStateData
+	Type ServerEventType
+}
+
+type ServerStateData struct {
+	LevelEnum LevelEnum
+	Timestamp time.Time
+}
+
 type CoordinateData struct {
 	X float32
 	Y float32
@@ -50,6 +60,7 @@ const (
 	PacketTypeUpdatePlayers
 	PacketTypeBulletStart
 	PacketTypePlayerHit
+	PacketTypeServerEvent
 )
 
 type NegotiationResponse struct {
