@@ -152,6 +152,11 @@ func (s *Server) Update() {
 }
 
 func (s *Server) AddConnection(key string, new_connection ConnectedPlayer) {
+	for _, value := range s.connection_keys {
+		if key == value {
+			return
+		}
+	}
 	s.connection_keys = append(s.connection_keys, key)
 	s.connections[key] = new_connection
 }
@@ -207,14 +212,18 @@ func (s *Server) Host(mediation_server_ip string) {
 
 	go func() {
 		for {
-			time.Sleep(time.Millisecond * 20)
+			time.Sleep(time.Millisecond * SERVER_PLAYER_SYNC_DELAY_MS)
 
 			packet = Packet{}
 			packet.PacketType = PacketTypeUpdatePlayers
 
 			connected_player_list := []ConnectedPlayer{}
+
+			connections := make(map[string]ConnectedPlayer)
+			maps.Copy(connections, s.connections)
+
 			for _, key := range s.connection_keys {
-				value := s.connections[key]
+				value := connections[key]
 				connected_player_list = append(connected_player_list, value)
 			}
 

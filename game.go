@@ -25,6 +25,7 @@ const (
 	TILE_SIZE     = 16
 	PLAYER_SPEED  = 2
 	BULLET_SPEED  = 2.5
+	SERVER_PLAYER_SYNC_DELAY_MS = 50
 )
 
 type LevelEnum uint
@@ -168,8 +169,29 @@ func (g *Game) Update() error {
 			bullets = append(bullets, bullet)
 		}
 	}
-
 	g.Client.bullets = bullets
+
+	states := make(map[string]PlayerState)
+	for key, state := range g.Client.player_states {
+		if g.Client.IsSelf(state.Connection.Addr) {
+			states[key] = state
+			continue
+		}
+
+		ps, _ := g.Client.player_states[key]
+		currentRelativePosition := ps.GetInterpolatedPos()
+		if state.CurrentPos.X != currentRelativePosition.X || state.CurrentPos.Y != currentRelativePosition.Y {
+			ps.MoveDuration += 1
+		} else {
+			ps.MoveDuration = ps.MoveDuration % 30
+			ps.MoveDuration = max(0, ps.MoveDuration-1)
+		}
+
+		ps.FrameCount++
+		states[key] = ps
+	}
+
+	g.Client.player_states = states
 
 	sparks := []Spark{}
 	for _, spark := range g.Sparks {
@@ -295,7 +317,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			op.GeoM.Rotate(math.Sin(float64(state.MoveDuration/5)) * 0.2)
 			op.GeoM.Translate(8, 8)
 		}
-		op.GeoM.Translate(state.Connection.Position.X, state.Connection.Position.Y)
+
+		RenderPos := state.GetInterpolatedPos()
+		op.GeoM.Translate(RenderPos .X, RenderPos.Y)
 		op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
 		screen.DrawImage(g.Player.Sprite, &op)
 	}

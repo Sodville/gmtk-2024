@@ -35,7 +35,22 @@ type Bullet struct {
 
 type PlayerState struct {
 	Connection   ConnectedPlayer
+	PreviousPos  Position
+	PreviousRelativePos  Position
+	CurrentPos   Position
 	MoveDuration int
+	FrameCount   uint
+}
+
+func (ps *PlayerState) GetInterpolatedPos() Position {
+	// estimated frame count between packets
+	// f := 1000.0 / SERVER_PLAYER_SYNC_DELAY_MS
+	f := 6.0
+
+	x := ps.PreviousPos.X + float64(ps.FrameCount) / f * (ps.CurrentPos.X - ps.PreviousPos.X)
+	y := ps.PreviousPos.Y + float64(ps.FrameCount) / f * (ps.CurrentPos.Y - ps.PreviousPos.Y)
+
+	return Position{x, y}
 }
 
 func (c *Client) IsSelf(addr net.UDPAddr) bool {
@@ -194,21 +209,20 @@ func (c *Client) HandlePacket() {
 				id := pConn.Addr.String()
 				ps, ok := c.player_states[id]
 				if ok {
-					if ps.Connection.Position != pConn.Position {
-						ps.MoveDuration += 1
-					} else {
-						ps.MoveDuration = ps.MoveDuration % 30
-						ps.MoveDuration = max(0, ps.MoveDuration-1)
-					}
 					ps.Connection = pConn
+					ps.PreviousPos = ps.CurrentPos
+					ps.CurrentPos = pConn.Position
+					ps.FrameCount = 0
 					states[id] = ps
 				} else {
-					states[pConn.Addr.String()] = PlayerState{
+					states[id] = PlayerState{
 						Connection:   pConn,
 						MoveDuration: 0,
+						FrameCount: 0,
+						PreviousPos: pConn.Position,
+						CurrentPos: pConn.Position,
 					}
 				}
-
 			}
 			c.player_states = states
 
