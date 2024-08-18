@@ -47,6 +47,8 @@ type PlayerState struct {
 	CurrentPos          Position
 	MoveDuration        int
 	FrameCount          uint
+	RollDuration        float64
+	RollSpeed           float64
 }
 
 type PlayerUpdateData struct {
@@ -109,6 +111,18 @@ func (c *Client) SendShoot(bullet Bullet) {
 	raw_data, err := SerializePacket(packet, bullet)
 	if err != nil {
 		fmt.Println("error serializing bullet packet", err)
+	}
+
+	c.conn.WriteToUDP(raw_data, &c.host_addr)
+}
+
+func (c *Client) SendRoll() {
+	packet := Packet{}
+	packet.PacketType = PacketTypePlayerRoll
+
+	raw_data, err := SerializePacket(packet, Packet{})
+	if err != nil {
+		fmt.Println("error serializing roll packet", err)
 	}
 
 	c.conn.WriteToUDP(raw_data, &c.host_addr)
@@ -273,6 +287,7 @@ func (c *Client) HandlePacket() {
 					ps.PreviousPos = ps.CurrentPos
 					ps.CurrentPos = pConn.Position
 					ps.FrameCount = 0
+					ps.RollDuration = min(0, ps.RollDuration+ps.RollSpeed*0.085)
 					states[id] = ps
 				} else {
 					states[id] = PlayerState{

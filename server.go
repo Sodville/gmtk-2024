@@ -67,8 +67,8 @@ type Server struct {
 	bullets_mutex         sync.RWMutex
 	level                 *Level
 	State                 ServerState
-	Enemies				  []Enemy
-	SpawnCooldown		  float64
+	Enemies               []Enemy
+	SpawnCooldown         float64
 }
 
 func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {
@@ -93,7 +93,7 @@ func (s *Server) CheckTimedOutPlayers() {
 
 	for _, conn := range s.connection_keys {
 		player, ok := loadFromSyncMap[ConnectedPlayer](conn, &s.connections)
-		if ok && int(player.TimeLastPacket) - int(time.Now().UnixMilli()) + TIMEOUT_INTERVAL_MS > 0 {
+		if ok && int(player.TimeLastPacket)-int(time.Now().UnixMilli())+TIMEOUT_INTERVAL_MS > 0 {
 			newConnectionKeys = append(newConnectionKeys, conn)
 		}
 	}
@@ -210,8 +210,8 @@ func (s *Server) StartSpawnMonsterEvent() {
 	radius := 80
 	EnemiesToSpawn := []Enemy{}
 	for i := 0; i < r.Intn(MAX_SPAWN_COUNT); i++ {
-		X := r.Intn(radius * 2) - radius
-		Y := r.Intn(radius * 2) - radius
+		X := r.Intn(radius*2) - radius
+		Y := r.Intn(radius*2) - radius
 
 		enemy := Enemy{
 			CharacterZombie,
@@ -262,12 +262,12 @@ func (s *Server) Update() {
 		if !bullet.HurtsPlayer {
 			for key, enemy := range s.Enemies {
 				if bullet.Position.X < enemy.Position.X+TILE_SIZE &&
-				bullet.Position.X+4 > enemy.Position.X && // 4 is width
-				bullet.Position.Y < enemy.Position.Y+TILE_SIZE &&
-				bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
+					bullet.Position.X+4 > enemy.Position.X && // 4 is width
+					bullet.Position.Y < enemy.Position.Y+TILE_SIZE &&
+					bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
 					should_remove = true
 					log.Println("hit enemy", enemy.Life)
-					s.Enemies[key].Life = max(0, enemy.Life - damage)
+					s.Enemies[key].Life = max(0, enemy.Life-damage)
 
 				}
 			}
@@ -279,10 +279,12 @@ func (s *Server) Update() {
 						bullet.Position.X+4 > player.Position.X && // 4 is width
 						bullet.Position.Y < player.Position.Y+TILE_SIZE &&
 						bullet.Position.Y+4 > player.Position.Y { // 4 is height
-						packet := Packet{}
-						packet.PacketType = PacketTypePlayerHit
+						if !player.IsRolling {
+							packet := Packet{}
+							packet.PacketType = PacketTypePlayerHit
 
-						s.Broadcast(packet, HitInfo{player, damage})
+							s.Broadcast(packet, HitInfo{player, damage}) // TODO: fix damage etc.
+						}
 						should_remove = true
 					}
 				} else {
@@ -308,7 +310,7 @@ func (s *Server) Update() {
 
 	s.CheckState()
 
-	s.SpawnCooldown = max(0, s.SpawnCooldown - 0.16)
+	s.SpawnCooldown = max(0, s.SpawnCooldown-0.16)
 
 	enemies := []Enemy{}
 	for key := range s.Enemies {
@@ -414,7 +416,7 @@ func (s *Server) Host(mediation_server_ip string) {
 				dec.Decode(&new_connection)
 
 				s.connection_keys_mutex.Lock()
-				// sync.Map (which is a struct) doesn't an equivalent method to len()
+				// sync.Map (which is a struct) doesn't have an equivalent method to len()
 				new_player := ConnectedPlayer{
 					new_connection,
 					Position{},
@@ -507,6 +509,13 @@ func (s *Server) Host(mediation_server_ip string) {
 				s.bullets_mutex.Lock()
 				s.bullets = append(s.bullets, bullet)
 				s.bullets_mutex.Unlock()
+
+			case PacketTypePlayerRoll:
+				player, ok := loadFromSyncMap[ConnectedPlayer](packet_data.Addr.String(), &s.connections)
+				if ok {
+					player.IsRolling = true
+				}
+				s.connections.Store(packet_data.Addr.String(), player)
 			}
 		}
 	}

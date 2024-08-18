@@ -13,13 +13,21 @@ type Player struct {
 	MoveDuration int
 	Weapon       WeaponType
 	Rotation     float64
+	RollSpeed    float64
+	RollDuration float64
+	RollCooldown float64
+	Invulnerable bool
 
 	ShootCooldown float64
 }
 
 func (p *Player) Draw(screen *ebiten.Image, camera Camera) {
 	op := ebiten.DrawImageOptions{}
-	if p.MoveDuration > 0 {
+	if p.RollDuration != 0 {
+		op.GeoM.Translate(-8, -8)
+		op.GeoM.Rotate(p.RollDuration)
+		op.GeoM.Translate(8, 8)
+	} else if p.MoveDuration > 0 {
 		op.GeoM.Translate(-8, -8)
 		op.GeoM.Rotate(math.Sin(float64(p.MoveDuration/5)) * 0.2)
 		op.GeoM.Translate(8, 8)
@@ -34,9 +42,30 @@ func (p *Player) Draw(screen *ebiten.Image, camera Camera) {
 func (p *Player) Update(game *Game) {
 	player_pos := &p.Position
 	initial_pos := *player_pos
+	var speed float64
+	if ebiten.IsKeyPressed(ebiten.KeySpace) && p.RollCooldown == 0 {
+		if ebiten.IsKeyPressed(ebiten.KeyD) {
+			p.RollDuration = math.Pi * -2
+		} else {
+			p.RollDuration = math.Pi * 2
+		}
+		p.Invulnerable = true
+	}
+
+	if p.RollDuration > 0 {
+		speed = p.RollSpeed
+		p.RollDuration = max(0, p.RollDuration-p.RollSpeed*0.085)
+	} else if p.RollDuration < 0 {
+		speed = p.RollSpeed
+		p.RollDuration = min(0, p.RollDuration+p.RollSpeed*0.085)
+	} else {
+		speed = p.Speed
+		// TODO: should be server decided probs
+		p.Invulnerable = false
+	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		player_pos.Y -= p.Speed
+		player_pos.Y -= speed
 		collided_object := game.Level.CheckObjectCollision(*player_pos)
 		if collided_object != nil {
 			player_pos.Y = collided_object.Y + collided_object.Height
@@ -44,7 +73,7 @@ func (p *Player) Update(game *Game) {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		player_pos.Y += p.Speed
+		player_pos.Y += speed
 		collided_object := game.Level.CheckObjectCollision(*player_pos)
 		if collided_object != nil {
 			player_pos.Y = collided_object.Y - TILE_SIZE
@@ -52,7 +81,7 @@ func (p *Player) Update(game *Game) {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		player_pos.X -= p.Speed
+		player_pos.X -= speed
 		collided_object := game.Level.CheckObjectCollision(*player_pos)
 		if collided_object != nil {
 			player_pos.X = collided_object.X + collided_object.Width
@@ -60,13 +89,14 @@ func (p *Player) Update(game *Game) {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		player_pos.X += p.Speed
+		player_pos.X += speed
 		collided_object := game.Level.CheckObjectCollision(*player_pos)
 		if collided_object != nil {
 			player_pos.X = collided_object.X - TILE_SIZE
 		}
 	}
 
+	// "Cooldown" animation when player stops moving
 	if p.Position == initial_pos {
 		p.MoveDuration = p.MoveDuration % 30
 		p.MoveDuration = max(0, p.MoveDuration-1)

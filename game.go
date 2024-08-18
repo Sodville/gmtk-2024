@@ -18,6 +18,7 @@ const (
 	RENDER_HEIGHT               = 480
 	TILE_SIZE                   = 16
 	PLAYER_SPEED                = 2
+	ROLL_SPEED                  = 4
 	SERVER_PLAYER_SYNC_DELAY_MS = 50
 	TOGGLECOOLDOWN              = 30
 	TIMEOUT_INTERVAL_MS         = 2500
@@ -57,7 +58,7 @@ func (g *Game) Update() error {
 	}
 
 	if g.Client.is_connected && (g.FrameCount%3 == 0) {
-		g.Client.SendPosition(g.Player.Position, g.Player.Rotation, g.Player.Weapon, false) // TODO
+		g.Client.SendPosition(g.Player.Position, g.Player.Rotation, g.Player.Weapon, g.Player.RollDuration > 0) // TODO
 	}
 
 	g.Player.Update(g)
@@ -104,7 +105,7 @@ func (g *Game) Update() error {
 	rotation := CalculateOrientationRads(g.Camera, g.Player.GetCenter())
 	g.Player.Rotation = rotation
 
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) && g.Player.ShootCooldown == 0 {
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) && g.Player.ShootCooldown == 0 && g.Player.RollDuration == 0 {
 		current_pos := g.Player.Position
 
 		g.Client.SendShoot(Bullet{
@@ -119,6 +120,13 @@ func (g *Game) Update() error {
 	}
 
 	g.Player.ShootCooldown = max(0, g.Player.ShootCooldown-.16)
+
+	if ebiten.IsKeyPressed(ebiten.KeySpace) && g.Player.RollCooldown == 0 {
+		g.Client.SendRoll()
+		g.Player.RollCooldown = 100
+	}
+
+	g.Player.RollCooldown = max(0, g.Player.RollCooldown-1)
 
 	g.Client.bullets_mutex.Lock()
 	for i, bullet := range g.Client.bullets {
@@ -175,17 +183,16 @@ func (g *Game) Update() error {
 			continue
 		}
 
-		ps := g.Client.player_states[key]
-		currentRelativePosition := ps.GetInterpolatedPos()
+		currentRelativePosition := state.GetInterpolatedPos()
 		if state.CurrentPos.X != currentRelativePosition.X || state.CurrentPos.Y != currentRelativePosition.Y {
-			ps.MoveDuration += 1
+			state.MoveDuration += 1
 		} else {
-			ps.MoveDuration = ps.MoveDuration % 30
-			ps.MoveDuration = max(0, ps.MoveDuration-1)
+			state.MoveDuration = state.MoveDuration % 30
+			state.MoveDuration = max(0, state.MoveDuration-1)
 		}
 
-		ps.FrameCount++
-		states[key] = ps
+		state.FrameCount++
+		states[key] = state
 	}
 
 	g.Client.player_states = states
@@ -380,7 +387,17 @@ func main() {
 
 	player_sprite := GetSpriteByID(98) // PLAYER SPRITE
 
-	game := Game{Player: Player{Speed: PLAYER_SPEED, Position: Position{1, 1}, Sprite: player_sprite, Weapon: WeaponBow}, Client: &client, Level: &level, Server: &server}
+	game := Game{
+		Player: Player{
+			Speed:     PLAYER_SPEED,
+			RollSpeed: ROLL_SPEED,
+			Position:  Position{1, 1},
+			Sprite:    player_sprite,
+			Weapon:    WeaponBow},
+		Client: &client,
+		Level:  &level,
+		Server: &server,
+	}
 
 	if game.Level.Spawn != nil {
 		game.Player.Position = Position{game.Level.Spawn.X, game.Level.Spawn.Y}
