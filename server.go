@@ -112,6 +112,9 @@ func (s *Server) StartChangeLevel(levelType LevelEnum, when time.Time) {
 
 	time.Sleep(time.Duration(remaining))
 	s.level = &newLevel
+
+	// reseting on map change
+	s.bullets = []Bullet{}
 }
 
 func (s *Server) HandleState() {

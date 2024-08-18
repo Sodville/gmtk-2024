@@ -434,6 +434,10 @@ func (g *Game) StartChangeLevel(levelType LevelEnum, when time.Time) {
 	time.Sleep(time.Duration(remaining))
 	g.Level = &newLevel
 
+	// reseting on map change
+	g.Debris = []Bullet{}
+	g.Client.bullets = []Bullet{}
+
 	if g.Level.Spawn != nil {
 		g.Player.Position = Position{g.Level.Spawn.X, g.Level.Spawn.Y}
 	}
