@@ -34,12 +34,12 @@ type Bullet struct {
 }
 
 type PlayerState struct {
-	Connection   ConnectedPlayer
-	PreviousPos  Position
-	PreviousRelativePos  Position
-	CurrentPos   Position
-	MoveDuration int
-	FrameCount   uint
+	Connection          ConnectedPlayer
+	PreviousPos         Position
+	PreviousRelativePos Position
+	CurrentPos          Position
+	MoveDuration        int
+	FrameCount          uint
 }
 
 func (ps *PlayerState) GetInterpolatedPos() Position {
@@ -47,8 +47,8 @@ func (ps *PlayerState) GetInterpolatedPos() Position {
 	// f := 1000.0 / SERVER_PLAYER_SYNC_DELAY_MS
 	f := 6.0
 
-	x := ps.PreviousPos.X + float64(ps.FrameCount) / f * (ps.CurrentPos.X - ps.PreviousPos.X)
-	y := ps.PreviousPos.Y + float64(ps.FrameCount) / f * (ps.CurrentPos.Y - ps.PreviousPos.Y)
+	x := ps.PreviousPos.X + float64(ps.FrameCount)/f*(ps.CurrentPos.X-ps.PreviousPos.X)
+	y := ps.PreviousPos.Y + float64(ps.FrameCount)/f*(ps.CurrentPos.Y-ps.PreviousPos.Y)
 
 	return Position{x, y}
 }
@@ -218,9 +218,9 @@ func (c *Client) HandlePacket() {
 					states[id] = PlayerState{
 						Connection:   pConn,
 						MoveDuration: 0,
-						FrameCount: 0,
-						PreviousPos: pConn.Position,
-						CurrentPos: pConn.Position,
+						FrameCount:   0,
+						PreviousPos:  pConn.Position,
+						CurrentPos:   pConn.Position,
 					}
 				}
 			}

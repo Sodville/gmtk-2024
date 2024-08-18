@@ -18,13 +18,13 @@ import (
 )
 
 const (
-	SCREEN_WIDTH  = 320
-	SCREEN_HEIGHT = 240
-	RENDER_WIDTH  = 640
-	RENDER_HEIGHT = 480
-	TILE_SIZE     = 16
-	PLAYER_SPEED  = 2
-	BULLET_SPEED  = 2.5
+	SCREEN_WIDTH                = 320
+	SCREEN_HEIGHT               = 240
+	RENDER_WIDTH                = 640
+	RENDER_HEIGHT               = 480
+	TILE_SIZE                   = 16
+	PLAYER_SPEED                = 2
+	BULLET_SPEED                = 2.5
 	SERVER_PLAYER_SYNC_DELAY_MS = 50
 )
 
@@ -319,7 +319,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 
 		RenderPos := state.GetInterpolatedPos()
-		op.GeoM.Translate(RenderPos .X, RenderPos.Y)
+		op.GeoM.Translate(RenderPos.X, RenderPos.Y)
 		op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
 		screen.DrawImage(g.Player.Sprite, &op)
 	}
