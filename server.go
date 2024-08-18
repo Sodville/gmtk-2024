@@ -12,12 +12,12 @@ import (
 )
 
 type ConnectedPlayer struct {
-	Addr      net.UDPAddr
-	Position  Position
-	Rotation  float64
-	Weapon    WeaponType
-	IsRolling bool
-	IsReady   bool
+	Addr           net.UDPAddr
+	Position       Position
+	Rotation       float64
+	Weapon         WeaponType
+	IsRolling      bool
+	IsReady        bool
 	TimeLastPacket uint64
 
 	// currently does not work
@@ -38,17 +38,18 @@ const (
 )
 
 type EventType uint
+
 const (
 	NewLevelEvent EventType = iota + 1
 )
 
 type ServerStateContext struct {
-	Time time.Time
+	Time  time.Time
 	Level LevelEnum
 }
 
 type ServerState struct {
-	State ServerStateType
+	State   ServerStateType
 	Context ServerStateContext
 }
 
@@ -63,7 +64,7 @@ type Server struct {
 	bullets               []Bullet
 	bullets_mutex         sync.RWMutex
 	level                 *Level
-	State				  ServerState
+	State                 ServerState
 }
 
 func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {

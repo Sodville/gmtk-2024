@@ -19,7 +19,7 @@ const (
 	TILE_SIZE                   = 16
 	PLAYER_SPEED                = 2
 	SERVER_PLAYER_SYNC_DELAY_MS = 50
-	TOGGLECOOLDOWN = 30
+	TOGGLECOOLDOWN              = 30
 )
 
 var emptyImage = ebiten.NewImage(3, 3)
@@ -36,7 +36,7 @@ type Game struct {
 
 	Debris []Bullet
 
-	toggleCooldown int
+	toggleCooldown        int
 	event_handler_running bool
 }
 
@@ -89,7 +89,7 @@ func (g *Game) Update() error {
 	}
 
 	// we don't really care if it's frames or MS as it's not related to gameplay
-	g.toggleCooldown = max(0, g.toggleCooldown - 1)
+	g.toggleCooldown = max(0, g.toggleCooldown-1)
 
 	rotation := CalculateOrientationRads(g.Camera, g.Player.GetCenter())
 	g.Player.Rotation = rotation
@@ -193,7 +193,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if g.Client.IsSelf(state.Connection.Addr) {
 			continue
 		}
-
 
 		op := ebiten.DrawImageOptions{}
 		if state.MoveDuration > 0 {

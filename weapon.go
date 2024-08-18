@@ -20,7 +20,7 @@ const (
 var WeaponImageMap map[WeaponType]*ebiten.Image = make(map[WeaponType]*ebiten.Image)
 var BulletImageMap map[WeaponType]*ebiten.Image = make(map[WeaponType]*ebiten.Image)
 
-func GetWeaponSprite(weapon WeaponType) *ebiten.Image{
+func GetWeaponSprite(weapon WeaponType) *ebiten.Image {
 	if weapon >= WeaponCount || weapon <= 0 {
 		weapon = WeaponBow
 	}
@@ -28,7 +28,7 @@ func GetWeaponSprite(weapon WeaponType) *ebiten.Image{
 	return WeaponImageMap[weapon]
 }
 
-func GetBulletSprite(weapon WeaponType) *ebiten.Image{
+func GetBulletSprite(weapon WeaponType) *ebiten.Image {
 	if weapon >= WeaponCount || weapon <= 0 {
 		weapon = WeaponBow
 	}
@@ -70,7 +70,7 @@ func GetWeaponFriendlyFire(weapon WeaponType) bool {
 	}
 }
 
-func DrawWeapon (screen *ebiten.Image, camera Camera, w WeaponType, player Player) {
+func DrawWeapon(screen *ebiten.Image, camera Camera, w WeaponType, player Player) {
 	// Half the size of sprite
 	distance := 8.
 
@@ -96,7 +96,7 @@ func DrawWeapon (screen *ebiten.Image, camera Camera, w WeaponType, player Playe
 }
 
 func InitializeWeapons() {
-	for i := 1; i < int(WeaponCount); i ++ {
+	for i := 1; i < int(WeaponCount); i++ {
 		switch i {
 		case int(WeaponCount):
 			image, _, err := ebitenutil.NewImageFromFile("assets/Weapons/weapon_1.png")
@@ -111,7 +111,6 @@ func InitializeWeapons() {
 			}
 			WeaponImageMap[WeaponType(i)] = image
 		}
-
 
 		switch i {
 		case int(WeaponCount):

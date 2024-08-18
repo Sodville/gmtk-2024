@@ -25,8 +25,8 @@ type Client struct {
 	is_connected        bool
 	event_channel       chan Event
 	readyPlayersCount   uint
-	playerCount			uint
-	ServerState			ServerState
+	playerCount         uint
+	ServerState         ServerState
 
 	ID uint
 }

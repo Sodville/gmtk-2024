@@ -34,7 +34,7 @@ type ReconcilliationData struct {
 }
 
 type Event struct {
-	Type  EventType
+	Type EventType
 
 	// these fields are considered unions and can be safely considered nil
 	Level LevelEnum
