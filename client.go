@@ -129,7 +129,7 @@ func (c *Client) SendRoll() {
 }
 
 func (c *Client) listen() {
-	buf := make([]byte, 1024)
+	buf := make([]byte, 2048)
 	for {
 		n, addr, err := c.conn.ReadFromUDP(buf)
 		if err != nil {
@@ -323,7 +323,8 @@ func (c *Client) HandlePacket() {
 			var event Event
 			_ = dec.Decode(&event)
 
-			fmt.Println("got server event", event.Type)
+			fmt.Println("got server event", event.Type, len(event.Enemies))
+			fmt.Println("size", packet_data.Packet.PayloadSize)
 			go func() { c.event_channel <- event }()
 
 		}
