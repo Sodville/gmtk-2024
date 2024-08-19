@@ -21,7 +21,11 @@ const (
 const (
 	ModifierTypeSpeed ModifierType = iota
 	ModifierTypeDamage
-	ModifierTypeFireRate
+	ModifierTypeWeaponCooldown
+	ModifierTypeBulletSpeed
+	ModifierTypeLife
+
+	ModifierTypeCount
 )
 
 type Modifier struct {
@@ -38,13 +42,21 @@ func (m *Modifier) GetString(prefix string) string {
 	}
 
 	switch m.Type {
+	case ModifierTypeWeaponCooldown:
+		r = "%s gain %.0f%% %s fire rate"
+	case ModifierTypeLife:
+		r = "%s gain %.0f%% %s life"
+	case ModifierTypeBulletSpeed:
+		r = "%s gain %.0f%% %s bullet speed"
+	case ModifierTypeSpeed:
+		r = "%s gain %.0f%% %s move speed"
 	case ModifierTypeDamage:
 		r = "%s gain %.0f%% %s damage"
 	default:
 		r = "%s gain %.0f%% %s ..."
 	}
 
-	return fmt.Sprintf(r, prefix, m.Value, moreOrIncreased)
+	return fmt.Sprintf(r, prefix, m.Value * 100, moreOrIncreased)
 }
 
 type Modifiers struct {
@@ -53,7 +65,7 @@ type Modifiers struct {
 }
 
 func getModifiedValue(valueType ModifierType, modifiers []Modifier) float64 {
-	base := 0.0
+	base := 1.0
 	multi := make([]float64, 0)
 	for _, m := range modifiers {
 		if m.Type == valueType {
@@ -66,7 +78,7 @@ func getModifiedValue(valueType ModifierType, modifiers []Modifier) float64 {
 	}
 
 	for _, n := range multi {
-		base *= n
+		base *= 1 + n
 	}
 
 	return base

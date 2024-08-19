@@ -158,12 +158,14 @@ func (g *Game) Update() error {
 
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) && g.Player.ShootCooldown == 0 && g.Player.RollDuration == 0 {
 		current_pos := g.Player.Position
+		speed := GetWeaponSpeed(g.Player.Weapon)
+		speed *= float32(g.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeBulletSpeed))
 
 		g.Client.SendShoot(Bullet{
 			current_pos,
 			rotation,
 			g.Player.Weapon,
-			GetWeaponSpeed(g.Player.Weapon),
+			speed,
 			0,
 			GetWeaponFriendlyFire(g.Player.Weapon)},
 		)
@@ -176,7 +178,9 @@ func (g *Game) Update() error {
 			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation + .5, 1, 1, WHITE})
 		}
 
-		g.Player.ShootCooldown = GetWeaponCooldown(g.Player.Weapon)
+		weaponCooldown := GetWeaponCooldown(g.Player.Weapon)
+		weaponCooldown /= g.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeWeaponCooldown)
+		g.Player.ShootCooldown = weaponCooldown
 	}
 
 	g.Player.ShootCooldown = max(0, g.Player.ShootCooldown-.16)
@@ -207,6 +211,7 @@ func (g *Game) Update() error {
 		bullet.Position.Y += y * float64(bullet.Speed)
 
 		damage := GetWeaponDamage(bullet.WeaponType)
+		damage *= g.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeDamage)
 		hitEnemy := false
 
 		if !bullet.HurtsPlayer {
@@ -216,7 +221,7 @@ func (g *Game) Update() error {
 					bullet.Position.Y < enemy.Position.Y+TILE_SIZE &&
 					bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
 					hitEnemy = true
-					g.Enemies[key].Life = max(0, enemy.Life-damage)
+					g.Enemies[key].Life = max(0, enemy.Life - int(damage))
 				}
 			}
 		}
@@ -411,9 +416,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		op.GeoM.Translate(-float64(len(levelString) / 2) * fontSize, -fontSize / 2)
 		text.Draw(screen, levelString, &text.GoTextFace{ Source : fontFaceSource, Size: fontSize }, &op)
-
-		ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d\t%d", g.Client.readyPlayersCount, g.Client.playerCount, g.Player.Life))
 	}
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d\t%d", g.Client.readyPlayersCount, g.Client.playerCount, g.Player.Life))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {

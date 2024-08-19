@@ -174,12 +174,22 @@ func (s *Server) getNextLevel() LevelEnum {
 func (s *Server) makeRandomModifiers() []Modifiers {
 
 	additiveMod := Modifiers{}
-	additiveMod.Monster = append(additiveMod.Monster, Modifier{ModifierCalcTypeAddi, ModifierTypeSpeed, 20.0})
-	additiveMod.Player = append(additiveMod.Player, Modifier{ModifierCalcTypeAddi, ModifierTypeDamage, 20.0})
+	n := rand.Intn(int(ModifierTypeCount))
+	v := float64(rand.Intn(15) + 5)
+	additiveMod.Monster = append(additiveMod.Monster, Modifier{ModifierCalcTypeAddi, ModifierType(n), v / 100})
+
+	n = rand.Intn(int(ModifierTypeCount))
+	v = float64(rand.Intn(15) + 5)
+	additiveMod.Player = append(additiveMod.Player, Modifier{ModifierCalcTypeAddi, ModifierType(n), v / 100})
 
 	multiMod := Modifiers{}
-	multiMod.Monster = append(multiMod.Monster, Modifier{ModifierCalcTypeMulti, ModifierTypeDamage, 20.0})
-	multiMod.Player = append(multiMod.Player, Modifier{ModifierCalcTypeMulti, ModifierTypeSpeed, 20.0})
+	n = rand.Intn(int(ModifierTypeCount))
+	v = float64(rand.Intn(15) + 5)
+	multiMod.Monster = append(multiMod.Monster, Modifier{ModifierCalcTypeMulti, ModifierType(n), v / 100})
+
+	n = rand.Intn(int(ModifierTypeCount))
+	v = float64(rand.Intn(15) + 5)
+	multiMod.Player = append(multiMod.Player, Modifier{ModifierCalcTypeMulti, ModifierType(n), v / 100})
 
 	bothModifiers := []Modifiers{additiveMod, multiMod}
 	return bothModifiers
@@ -278,12 +288,14 @@ func (s *Server) StartSpawnMonsterEvent() {
 		x := float64(max(0, min(s.level.Map.Width * TILE_SIZE - TILE_SIZE, X + desiredX)))
 		y := float64(max(0, min(s.level.Map.Height * TILE_SIZE - TILE_SIZE, Y + desiredY)))
 
+		life := GetLifeForCharacter(CharacterZombie)
+		life *= int(s.Modifiers.GetModifiedMonsterValue(ModifierTypeLife))
 		enemy := Enemy{
 			CharacterZombie,
 			Position{x, y},
 			0,
 			0,
-			GetLifeForCharacter(CharacterZombie),
+			life,
 		}
 
 		collision := s.level.CheckObjectCollision(enemy.Position)
@@ -322,6 +334,7 @@ func (s *Server) Update() {
 
 		should_remove := false
 		damage := GetWeaponDamage(bullet.WeaponType)
+		damage *= s.Modifiers.GetModifiedPlayerValue(ModifierTypeDamage)
 
 		// it's our bullet shooting enemies, pew pew
 		if !bullet.HurtsPlayer {
@@ -332,7 +345,7 @@ func (s *Server) Update() {
 					bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
 					should_remove = true
 					log.Println("hit enemy", enemy.Life)
-					s.Enemies[key].Life = max(0, enemy.Life-damage)
+					s.Enemies[key].Life = max(0, enemy.Life - int(damage))
 
 				}
 			}
@@ -348,7 +361,9 @@ func (s *Server) Update() {
 							packet := Packet{}
 							packet.PacketType = PacketTypePlayerHit
 
-							s.Broadcast(packet, HitInfo{player, damage}) // TODO: fix damage etc.
+							damage := GetWeaponDamage(bullet.WeaponType)
+							damage *= s.Modifiers.GetModifiedMonsterValue(ModifierTypeDamage)
+							s.Broadcast(packet, HitInfo{player, int(damage)}) // TODO: fix damage etc.
 						}
 						should_remove = true
 					}

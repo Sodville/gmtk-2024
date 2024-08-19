@@ -72,6 +72,7 @@ func (p *Player) Update(game *Game) {
 		p.RollDuration = min(0, p.RollDuration+p.RollSpeed*0.085)
 	} else {
 		speed = p.Speed
+		speed *= game.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeSpeed)
 		// TODO: should be server decided probs
 		p.Invulnerable = false
 	}
@@ -120,7 +121,7 @@ func (p *Player) Update(game *Game) {
 	}
 
 	p.GracePeriod = max(0, p.GracePeriod-.16)
-	if p.GracePeriod == 0 {
+	if p.GracePeriod == 0 && !p.Invulnerable {
 		for _, enemy := range game.Enemies {
 			if enemy.Position.X < p.Position.X+TILE_SIZE &&
 				enemy.Position.X+TILE_SIZE > p.Position.X &&

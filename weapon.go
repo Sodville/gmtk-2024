@@ -45,7 +45,7 @@ func GetWeaponCooldown(weapon WeaponType) float64 {
 	}
 }
 
-func GetWeaponDamage(weapon WeaponType) int {
+func GetWeaponDamage(weapon WeaponType) float64 {
 	switch weapon {
 	case WeaponBow:
 		return 3
