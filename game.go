@@ -8,10 +8,10 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
@@ -132,13 +132,24 @@ func (g *Game) Update() error {
 	if ebiten.IsKeyPressed(ebiten.KeyE) && g.toggleCooldown == 0 {
 		g.toggleCooldown = TOGGLECOOLDOWN
 		for _, boon := range g.Boons {
-			log.Println(g.Player.Position.Distance(boon.Position))
 			if g.Player.Position.Distance(boon.Position) < BOON_INTERACT_RANGE {
 				g.Client.SendChosenModifiers(boon.Modifiers)
 			}
 		}
 	}
 
+
+	for i := range g.Boons {
+		boon := g.Boons[i]
+		if g.FrameCount % 2 == 0 {
+			if g.Player.Position.Distance(boon.Position) < BOON_INTERACT_RANGE {
+				boon.AnimationFrame = min(len(BOONSPRITES) - 1, boon.AnimationFrame + 1)
+			} else {
+				boon.AnimationFrame = max(0, boon.AnimationFrame - 1)
+			}
+		}
+		g.Boons[i] = boon
+	}
 	// we don't really care if it's frames or MS as it's not related to gameplay
 	g.toggleCooldown = max(0, g.toggleCooldown-1)
 
@@ -391,13 +402,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			transition := g.Transitions[i]
 			vector.DrawFilledRect(screen, float32(transition.Position.X), float32(transition.Position.Y), float32(g.TransitionWidth), SCREEN_HEIGHT, BLACK, true)
 		}
+
+		op := text.DrawOptions{}
+
+		fontSize := 18.
+		op.GeoM.Translate(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+		levelString := fmt.Sprintf("Level %d", g.LevelCount)
+
+		op.GeoM.Translate(-float64(len(levelString) / 2) * fontSize, -fontSize / 2)
+		text.Draw(screen, levelString, &text.GoTextFace{ Source : fontFaceSource, Size: fontSize }, &op)
+
+		ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d\t%d", g.Client.readyPlayersCount, g.Client.playerCount, g.Player.Life))
 	}
-	op := text.DrawOptions{}
-
-	op.GeoM.Translate(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
-	text.Draw(screen, fmt.Sprintf("Level %d", g.LevelCount), &text.GoTextFace{ Source : fontFaceSource, Size: 12 }, &op)
-
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d\t%d", g.Client.readyPlayersCount, g.Client.playerCount, g.Player.Life))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -469,7 +485,7 @@ func (g *Game) HandleEvent() {
 				g.Enemies = append(g.Enemies, event_data.Enemies...)
 			case SpawnBoonEvent:
 				for i, mod := range event_data.Modifiers {
-					g.Boons = append(g.Boons, Boon{mod, g.Level.BoonSpawns[i]})
+					g.Boons = append(g.Boons, Boon{mod, g.Level.BoonSpawns[i], 0})
 				}
 			case PrepareNewLevelEvent:
 				g.Boons = []Boon{}
@@ -498,7 +514,12 @@ func main() {
 	ebiten.SetWindowSize(RENDER_WIDTH, RENDER_HEIGHT)
 	ebiten.SetWindowTitle("Hello, World!")
 
-	s, err := text.NewGoTextFaceSource(bytes.NewReader(fonts.MPlus1pRegular_ttf))
+	b, err := os.ReadFile("assets/Fonts/PressStart2P-Regular.ttf")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	s, err := text.NewGoTextFaceSource(bytes.NewReader(b))
 	if err != nil {
 		log.Fatal(err)
 	}
