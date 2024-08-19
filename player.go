@@ -58,8 +58,8 @@ func (p *Player) Update(game *Game) {
 			current_pos.X += TILE_SIZE
 			direction = 0
 		}
-		game.Sparks = append(game.Sparks, Spark{ 2, current_pos, direction - .16, 3, 1.5, WHITE})
-		game.Sparks = append(game.Sparks, Spark{ 2, current_pos, direction + .16, 3, 1.5, WHITE})
+		game.Sparks = append(game.Sparks, Spark{2, current_pos, direction - .16, 3, 1.5, WHITE})
+		game.Sparks = append(game.Sparks, Spark{2, current_pos, direction + .16, 3, 1.5, WHITE})
 
 		p.Invulnerable = true
 	}
@@ -119,13 +119,13 @@ func (p *Player) Update(game *Game) {
 		p.MoveDuration += 1
 	}
 
-	p.GracePeriod = max(0, p.GracePeriod - .16)
+	p.GracePeriod = max(0, p.GracePeriod-.16)
 	if p.GracePeriod == 0 {
 		for _, enemy := range game.Enemies {
-			if enemy.Position.X < p.Position.X + TILE_SIZE &&
-			enemy.Position.X + TILE_SIZE > p.Position.X &&
-			enemy.Position.Y < p.Position.Y + TILE_SIZE &&
-			enemy.Position.Y + TILE_SIZE > p.Position.Y {
+			if enemy.Position.X < p.Position.X+TILE_SIZE &&
+				enemy.Position.X+TILE_SIZE > p.Position.X &&
+				enemy.Position.Y < p.Position.Y+TILE_SIZE &&
+				enemy.Position.Y+TILE_SIZE > p.Position.Y {
 				game.Client.SendHit(HitInfo{*game.Client.Self(), GetCharacterDamage(enemy.Type)})
 				p.GracePeriod = DEFAULT_GRACEPERIOD
 			}

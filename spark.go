@@ -7,6 +7,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
+
 var polygonImage *ebiten.Image = ebiten.NewImage(1, 1)
 
 type Spark struct {
@@ -64,7 +65,6 @@ func (s *Spark) Draw(screen *ebiten.Image, camera *Camera) {
 
 	vs, is := path.AppendVerticesAndIndicesForFilling(nil, nil)
 	polygonImage.Fill(s.Color)
-
 
 	screen.DrawTriangles(vs, is, polygonImage, &ebiten.DrawTrianglesOptions{})
 

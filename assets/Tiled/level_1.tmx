@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="45" height="40" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="34">
+<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="45" height="40" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="38">
  <tileset firstgid="1" source="sampleSheet.tsx"/>
  <layer id="1" name="Ground" width="45" height="40">
   <data encoding="csv">
@@ -47,6 +47,12 @@
  </layer>
  <objectgroup id="3" name="Misc">
   <object id="7" name="player_spawn" x="448" y="197.333">
+   <point/>
+  </object>
+  <object id="34" name="boon_spawn" x="367.91" y="298.007">
+   <point/>
+  </object>
+  <object id="37" name="boon_spawn" x="454.001" y="294.328">
    <point/>
   </object>
  </objectgroup>

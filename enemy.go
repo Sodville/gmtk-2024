@@ -32,7 +32,7 @@ func InitializeCharacters() {
 			image, _, err := ebitenutil.NewImageFromFile(fmt.Sprintf("assets/Characters/character_%d.png", i))
 			if err != nil {
 				panic(err)
-}
+			}
 			CharacterImageMap[CharacterType(i)] = image
 		}
 	}
@@ -40,28 +40,28 @@ func InitializeCharacters() {
 
 func GetLifeForCharacter(character CharacterType) int {
 	switch character {
-		case CharacterZombie:
-			return 13
-		default:
-			return 10
+	case CharacterZombie:
+		return 13
+	default:
+		return 10
 	}
 }
 
 func GetCharacterDamage(character CharacterType) int {
 	switch character {
-		case CharacterZombie:
-			return 2
-		default:
-			return 2
+	case CharacterZombie:
+		return 2
+	default:
+		return 2
 	}
 }
 
 type Enemy struct {
-	Type CharacterType
-	Position Position
+	Type         CharacterType
+	Position     Position
 	MoveDuration int
-	Lifetime uint
-	Life int
+	Lifetime     uint
+	Life         int
 }
 
 // we are cheating here and introducing game to the render because we can't introduce it for the update
@@ -94,14 +94,14 @@ func (e *Enemy) Draw(screen *ebiten.Image, camera Camera, game *Game) {
 
 		for i := 0; i < 7; i++ {
 			color := color.RGBA{49, 19, 29, 100}
-			game.Sparks = append(game.Sparks, Spark{ 6, currentPos, float64(i) - .16, .5, .5, color})
-			game.Sparks = append(game.Sparks, Spark{ 6, currentPos, float64(i) + .16, .5, .5, color})
+			game.Sparks = append(game.Sparks, Spark{6, currentPos, float64(i) - .16, .5, .5, color})
+			game.Sparks = append(game.Sparks, Spark{6, currentPos, float64(i) + .16, .5, .5, color})
 
 			color.R = 149
 			color.G = 119
 			color.B = 129
-			game.Sparks = append(game.Sparks, Spark{ 8, currentPos, float64(i) - .26, .5, .75, color})
-			game.Sparks = append(game.Sparks, Spark{ 8, currentPos, float64(i) + .26, .5, .75, color})
+			game.Sparks = append(game.Sparks, Spark{8, currentPos, float64(i) - .26, .5, .75, color})
+			game.Sparks = append(game.Sparks, Spark{8, currentPos, float64(i) + .26, .5, .75, color})
 		}
 	}
 }

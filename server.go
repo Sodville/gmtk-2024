@@ -20,7 +20,7 @@ type ConnectedPlayer struct {
 	IsRolling      bool
 	IsReady        bool
 	TimeLastPacket uint64
-	Life		   int
+	Life           int
 
 	// currently does not work
 	ID uint
@@ -37,6 +37,7 @@ const (
 	ServerStateStarting
 	ServerStateShopping
 	ServerStatePlaying
+	ServerStateLevelCompleted
 )
 
 type EventType uint
@@ -44,11 +45,15 @@ type EventType uint
 const (
 	NewLevelEvent EventType = iota + 1
 	SpawnEnemiesEvent
+	SpawnBoonEvent
+	PrepareNewLevelEvent
 )
 
 type ServerStateContext struct {
-	Time  time.Time
-	Level LevelEnum
+	Time             time.Time
+	Level            LevelEnum
+	ModifiersOptions []Modifiers
+	HasChosenOptions bool
 }
 
 type ServerState struct {
@@ -71,6 +76,7 @@ type Server struct {
 	Enemies               []Enemy
 	SpawnCooldown         float64
 	Modifiers             Modifiers
+	RemainingSpawnCycles  int
 }
 
 func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {
@@ -157,6 +163,28 @@ func (s *Server) AllReady() bool {
 
 }
 
+func (s *Server) getWaveDensity() int {
+	return 1
+}
+
+func (s *Server) getNextLevel() LevelEnum {
+	return LevelOne
+}
+
+func (s *Server) makeRandomModifiers() []Modifiers {
+
+	additiveMod := Modifiers{}
+	additiveMod.Monster = append(additiveMod.Monster, Modifier{ModifierCalcTypeAddi, ModifierTypeSpeed, 20.0})
+	additiveMod.Player = append(additiveMod.Player, Modifier{ModifierCalcTypeAddi, ModifierTypeDamage, 20.0})
+
+	multiMod := Modifiers{}
+	multiMod.Monster = append(multiMod.Monster, Modifier{ModifierCalcTypeMulti, ModifierTypeDamage, 20.0})
+	multiMod.Player = append(multiMod.Player, Modifier{ModifierCalcTypeMulti, ModifierTypeSpeed, 20.0})
+
+	bothModifiers := []Modifiers{additiveMod, multiMod}
+	return bothModifiers
+}
+
 func (s *Server) UpdateState() {
 	if s.State.State == ServerStateWaitingRoom {
 		if s.AllReady() {
@@ -172,27 +200,46 @@ func (s *Server) UpdateState() {
 		} else if s.State.Context.Time.Sub(time.Now()) <= 0 {
 			s.State.State = ServerStatePlaying
 			s.State.Context = ServerStateContext{}
-			s.State.Context.Level = LevelOne
+			s.State.Context.Level = s.getNextLevel()
 
-			packet := Packet{}
-			packet.PacketType = PacketTypeMatchStart
+			s.SpawnCooldown = INITAL_SPAWN_COOLDOWN
+			s.RemainingSpawnCycles = s.getWaveDensity()
 
-			data := ReconcilliationData{"Hello, server!"}
-			raw_data, _ := SerializePacket(packet, data)
-			_, err := s.conn.WriteToUDP(raw_data, &s.mediation_server)
+			if !s.started {
+				packet := Packet{}
+				packet.PacketType = PacketTypeMatchStart
 
-			if err != nil {
-				fmt.Println("error disconnecting from mediation server", err)
+				data := ReconcilliationData{"Hello, server!"}
+				raw_data, _ := SerializePacket(packet, data)
+				_, err := s.conn.WriteToUDP(raw_data, &s.mediation_server)
+
+				if err != nil {
+					fmt.Println("error disconnecting from mediation server", err)
+				}
+
+				s.started = true
 			}
 
 			LoadLevel(s.level, s.State.Context.Level)
 		}
 	} else if s.State.State == ServerStatePlaying {
-		if s.SpawnCooldown == 0 {
+		log.Println(s.RemainingSpawnCycles, len(s.Enemies))
+		if s.SpawnCooldown == 0 && s.RemainingSpawnCycles > 0 {
+			s.RemainingSpawnCycles--
 			s.StartSpawnMonsterEvent()
+		} else if s.RemainingSpawnCycles <= 0 && len(s.Enemies) == 0 {
+			s.State.State = ServerStateLevelCompleted
+
+			s.State.Context = ServerStateContext{}
+			s.State.Context.ModifiersOptions = s.makeRandomModifiers()
+			s.State.Context.HasChosenOptions = false
+		}
+	} else if s.State.State == ServerStateLevelCompleted {
+		if s.State.Context.HasChosenOptions {
+			s.State.State = ServerStateStarting
+			s.State.Context.Time = time.Now().Add(time.Second * 2)
 		}
 	}
-
 }
 
 func (s *Server) CheckState() {
@@ -200,6 +247,7 @@ func (s *Server) CheckState() {
 	s.UpdateState()
 
 	if oldState != s.State.State {
+		log.Println("server changes state to", s.State.State)
 		packet := Packet{}
 		packet.PacketType = PacketTypeServerStateChanged
 		s.Broadcast(packet, s.State)
@@ -226,9 +274,13 @@ func (s *Server) StartSpawnMonsterEvent() {
 		X := r.Intn(radius*2) - radius
 		Y := r.Intn(radius*2) - radius
 
+		// clamping inside arena
+		x := float64(max(0, min(s.level.Map.Width * TILE_SIZE, X + desiredX)))
+		y := float64(max(0, min(s.level.Map.Height * TILE_SIZE, Y + desiredY)))
+
 		enemy := Enemy{
 			CharacterZombie,
-			Position{float64(X + desiredX), float64(Y + desiredY)},
+			Position{x, y},
 			0,
 			0,
 			GetLifeForCharacter(CharacterZombie),
@@ -512,6 +564,7 @@ func (s *Server) Host(mediation_server_ip string) {
 				}
 
 			case PacketTypeClientToggleReady:
+				if s.started {continue}
 				player, ok := loadFromSyncMap[ConnectedPlayer](packet_data.Addr.String(), &s.connections)
 				if ok {
 					player.IsReady = !player.IsReady
@@ -526,6 +579,8 @@ func (s *Server) Host(mediation_server_ip string) {
 			case PacketTypeModifierChosen:
 				var modifiers Modifiers
 				dec.Decode(&modifiers)
+
+				s.State.Context.HasChosenOptions = true
 
 				s.Modifiers.Add(modifiers)
 				packet := Packet{}

@@ -23,6 +23,7 @@ type Level struct {
 	Map        *tiled.Map
 	Collisions []*tiled.Object
 	Spawn      *tiled.Object
+	BoonSpawns []Position
 }
 
 func (l *Level) CheckObjectCollision(position Position) *tiled.Object {
@@ -100,7 +101,14 @@ func LoadLevel(level *Level, levelType LevelEnum) {
 				if object.Name == "player_spawn" {
 					level.Spawn = object
 				}
+				if object.Name == "boon_spawn" {
+					level.BoonSpawns = append(level.BoonSpawns, Position{object.X, object.Y})
+				}
 			}
 		}
+	}
+
+	if levelType != LobbyLevel && len(level.BoonSpawns) < 2 {
+		panic("2 boon spawns are REQUIRED")
 	}
 }

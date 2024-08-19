@@ -40,3 +40,10 @@ func GetSpriteByID(ID int) *ebiten.Image {
 
 	return player_sprite
 }
+
+func (p *Position) Distance(other Position) float64 {
+	xDelta := p.X - other.X
+	yDelta := p.Y - other.Y
+
+	return math.Sqrt(xDelta*xDelta + yDelta*yDelta)
+}

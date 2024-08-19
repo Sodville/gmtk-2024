@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"image"
 	"image/color"
 	"log"
 	"math"
@@ -19,20 +18,20 @@ const (
 	RENDER_HEIGHT               = 480
 	TILE_SIZE                   = 16
 	PLAYER_SPEED                = 2
-	PLAYER_LIFE					= 10
+	PLAYER_LIFE                 = 10
 	ROLL_SPEED                  = 4
 	SERVER_PLAYER_SYNC_DELAY_MS = 50
 	TOGGLECOOLDOWN              = 30
 	TIMEOUT_INTERVAL_MS         = 2500
-	MAX_SPAWN_COUNT				= 12
+	MAX_SPAWN_COUNT             = 12
 	MINIMUM_SPAWN_COOLDOWN      = 30
+	INITAL_SPAWN_COOLDOWN       = 60
 	SPAWN_IDLE_TIME_FRAMES      = 60 * 2
-	DEFAULT_GRACEPERIOD			= 6
+	DEFAULT_GRACEPERIOD         = 6
+	BOON_INTERACT_RANGE         = 33.0
 )
 
-var WHITE color.RGBA = color.RGBA{255,255,255,255}
-var emptyImage = ebiten.NewImage(3, 3)
-var emptySubImage = emptyImage.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)
+var WHITE color.RGBA = color.RGBA{255, 255, 255, 255}
 
 type Game struct {
 	Player     Player
@@ -43,8 +42,8 @@ type Game struct {
 	Camera     Camera
 	Sparks     []Spark
 	Enemies    []Enemy
-
-	Debris []Bullet
+	Debris     []Bullet
+	Boons      []Boon
 
 	toggleCooldown        int
 	event_handler_running bool
@@ -99,14 +98,19 @@ func (g *Game) Update() error {
 		g.Player.Weapon = WeaponGun
 	}
 
-	if ebiten.IsKeyPressed(ebiten.KeyV) && g.toggleCooldown == 0 {
-		g.Enemies = append(g.Enemies, Enemy{CharacterZombie, g.Player.Position, 0, 0, 0})
-		g.toggleCooldown = TOGGLECOOLDOWN
-	}
-
 	if ebiten.IsKeyPressed(ebiten.KeyR) && g.toggleCooldown == 0 {
 		g.Client.ToggleReady()
 		g.toggleCooldown = TOGGLECOOLDOWN
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyE) && g.toggleCooldown == 0 {
+		g.toggleCooldown = TOGGLECOOLDOWN
+		for _, boon := range g.Boons {
+			log.Println(g.Player.Position.Distance(boon.Position))
+			if g.Player.Position.Distance(boon.Position) < BOON_INTERACT_RANGE {
+				g.Client.SendChosenModifiers(boon.Modifiers)
+			}
+		}
 	}
 
 	// we don't really care if it's frames or MS as it's not related to gameplay
@@ -128,11 +132,11 @@ func (g *Game) Update() error {
 		)
 
 		if WeaponHasSpark(g.Player.Weapon) {
-			current_pos.X += TILE_SIZE / 2 + math.Cos(g.Player.Rotation) * TILE_SIZE
-			current_pos.Y += TILE_SIZE / 2 + math.Sin(g.Player.Rotation) * TILE_SIZE
-			g.Sparks = append(g.Sparks, Spark{ 4, current_pos, g.Player.Rotation - .5, 1, 1, WHITE})
-			g.Sparks = append(g.Sparks, Spark{ 4, current_pos, g.Player.Rotation, 1, 1, WHITE})
-			g.Sparks = append(g.Sparks, Spark{ 4, current_pos, g.Player.Rotation + .5, 1, 1, WHITE})
+			current_pos.X += TILE_SIZE/2 + math.Cos(g.Player.Rotation)*TILE_SIZE
+			current_pos.Y += TILE_SIZE/2 + math.Sin(g.Player.Rotation)*TILE_SIZE
+			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation - .5, 1, 1, WHITE})
+			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation, 1, 1, WHITE})
+			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation + .5, 1, 1, WHITE})
 		}
 
 		g.Player.ShootCooldown = GetWeaponCooldown(g.Player.Weapon)
@@ -171,11 +175,11 @@ func (g *Game) Update() error {
 		if !bullet.HurtsPlayer {
 			for key, enemy := range g.Enemies {
 				if bullet.Position.X < enemy.Position.X+TILE_SIZE &&
-				bullet.Position.X+4 > enemy.Position.X && // 4 is width
-				bullet.Position.Y < enemy.Position.Y+TILE_SIZE &&
-				bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
+					bullet.Position.X+4 > enemy.Position.X && // 4 is width
+					bullet.Position.Y < enemy.Position.Y+TILE_SIZE &&
+					bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
 					hitEnemy = true
-					g.Enemies[key].Life = max(0, enemy.Life - damage)
+					g.Enemies[key].Life = max(0, enemy.Life-damage)
 				}
 			}
 		}
@@ -188,14 +192,14 @@ func (g *Game) Update() error {
 			sparkPos.Y += 4
 
 			if collision_object != nil {
-				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation - .5, 1, 1, color.RGBA{255, 255, 255, 255}})
-				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation, 1, 1, color.RGBA{192, 182, 200, 255}})
-				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation + .5, 1, 1, color.RGBA{255, 255, 255, 255}})
+				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation - .5, 1, 1, color.RGBA{255, 255, 255, 255}})
+				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation, 1, 1, color.RGBA{192, 182, 200, 255}})
+				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation + .5, 1, 1, color.RGBA{255, 255, 255, 255}})
 			} else if hitEnemy {
-				redColor := color.RGBA{ 255, 28, 28, 255 }
-				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation - .5, 1, 1, redColor})
-				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation, 1, 1, color.RGBA{192, 182, 200, 255}})
-				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation + .5, 1, 1, redColor})
+				redColor := color.RGBA{255, 28, 28, 255}
+				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation - .5, 1, 1, redColor})
+				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation, 1, 1, color.RGBA{192, 182, 200, 255}})
+				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation + .5, 1, 1, redColor})
 
 			}
 			if bullet.WeaponType == WeaponBow && !hitEnemy {
@@ -346,6 +350,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	g.Client.bullets_mutex.RUnlock()
 
+	for _, boon := range g.Boons {
+		boon.Draw(screen, &g.Camera)
+	}
+
 	for _, spark := range g.Sparks {
 		spark.Draw(screen, &g.Camera)
 	}
@@ -383,6 +391,13 @@ func (g *Game) HandleEvent() {
 				g.ChangeLevel(event_data.Level)
 			case SpawnEnemiesEvent:
 				g.Enemies = append(g.Enemies, event_data.Enemies...)
+			case SpawnBoonEvent:
+				for i, mod := range event_data.Modifiers {
+					g.Boons = append(g.Boons, Boon{mod, g.Level.BoonSpawns[i]})
+				}
+			case PrepareNewLevelEvent:
+				g.Boons = []Boon{}
+				// maybe make them do the cool
 			}
 		}
 	}

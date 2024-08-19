@@ -28,7 +28,7 @@ type Client struct {
 	playerCount         uint
 	ServerState         ServerState
 	PendingDamageTaken  int
-	Modifiers			Modifiers
+	Modifiers           Modifiers
 
 	ID uint
 }
@@ -204,11 +204,22 @@ func (c *Client) SendPosition(pos Position, rotation float64, weapon WeaponType,
 
 func (c *Client) HandleServerState(state ServerState) {
 	if state.State == ServerStatePlaying {
-
 		event := Event{}
 		event.Type = NewLevelEvent
 		event.Level = state.Context.Level
 
+		go func() { c.event_channel <- event }()
+	}
+
+	if state.State == ServerStateStarting {
+		event := Event{}
+		event.Type = PrepareNewLevelEvent
+		go func() { c.event_channel <- event }()
+	}
+	if state.State == ServerStateLevelCompleted {
+		event := Event{}
+		event.Type = SpawnBoonEvent
+		event.Modifiers = state.Context.ModifiersOptions
 		go func() { c.event_channel <- event }()
 	}
 }

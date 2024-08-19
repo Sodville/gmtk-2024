@@ -1,6 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
+)
 
 type ModifierCalcType int
 type ModifierType int
@@ -18,8 +23,8 @@ const (
 
 type Modifier struct {
 	CalcType ModifierCalcType
-	Type ModifierType
-	Value float64
+	Type     ModifierType
+	Value    float64
 }
 
 func (m *Modifier) GetString(prefix string) string {
@@ -36,15 +41,15 @@ func (m *Modifier) GetString(prefix string) string {
 		r = "%s gains %d% %s ..."
 	}
 
-	return fmt.Sprintf(r, prefix, m.Value / 100, moreOrIncreased)
+	return fmt.Sprintf(r, prefix, m.Value/100, moreOrIncreased)
 }
 
 type Modifiers struct {
 	Monster []Modifier
-	Player []Modifier
+	Player  []Modifier
 }
 
-func getModifiedValue(valueType ModifierType, modifiers[] Modifier) float64 {
+func getModifiedValue(valueType ModifierType, modifiers []Modifier) float64 {
 	base := 0.0
 	multi := make([]float64, 0)
 	for _, m := range modifiers {
@@ -75,4 +80,19 @@ func (m *Modifiers) GetModifiedPlayerValue(valueType ModifierType) float64 {
 func (m *Modifiers) Add(newModifiers Modifiers) {
 	m.Monster = append(m.Monster, newModifiers.Monster...)
 	m.Player = append(m.Player, newModifiers.Player...)
+}
+
+type Boon struct {
+	Modifiers Modifiers
+	Position  Position
+}
+
+func (b *Boon) Draw(screen *ebiten.Image, camera *Camera) {
+	x := b.Position.X - camera.Offset.X
+	y := b.Position.Y - camera.Offset.Y
+	vector.DrawFilledRect(screen, float32(x), float32(y), 16, 16, WHITE, true)
+}
+
+func (b *Boon) Update(screen *ebiten.Image) {
+
 }
