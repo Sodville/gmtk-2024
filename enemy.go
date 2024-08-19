@@ -46,6 +46,15 @@ func GetLifeForCharacter(character CharacterType) int {
 	}
 }
 
+func GetCharacterDamage(character CharacterType) int {
+	switch character {
+		case CharacterZombie:
+			return 2
+		default:
+			return 2
+	}
+}
+
 type Enemy struct {
 	Type CharacterType
 	Position Position

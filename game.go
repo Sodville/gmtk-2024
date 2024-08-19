@@ -18,6 +18,7 @@ const (
 	RENDER_HEIGHT               = 480
 	TILE_SIZE                   = 16
 	PLAYER_SPEED                = 2
+	PLAYER_LIFE					= 10
 	ROLL_SPEED                  = 4
 	SERVER_PLAYER_SYNC_DELAY_MS = 50
 	TOGGLECOOLDOWN              = 30
@@ -25,6 +26,7 @@ const (
 	MAX_SPAWN_COUNT				= 12
 	MINIMUM_SPAWN_COOLDOWN      = 30
 	SPAWN_IDLE_TIME_FRAMES      = 60 * 2
+	DEFAULT_GRACEPERIOD			= 6
 )
 
 var emptyImage = ebiten.NewImage(3, 3)
@@ -58,7 +60,13 @@ func (g *Game) Update() error {
 	}
 
 	if g.Client.is_connected && (g.FrameCount%3 == 0) {
-		g.Client.SendPosition(g.Player.Position, g.Player.Rotation, g.Player.Weapon, g.Player.RollDuration > 0) // TODO
+		g.Client.SendPosition(
+			g.Player.Position,
+			g.Player.Rotation,
+			g.Player.Weapon,
+			g.Player.RollDuration > 0,
+			g.Player.Life,
+		) // TODO
 	}
 
 	g.Player.Update(g)
@@ -315,7 +323,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		spark.Draw(screen, &g.Camera)
 	}
 
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d", g.Client.readyPlayersCount, g.Client.playerCount))
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d\t%d", g.Client.readyPlayersCount, g.Client.playerCount, g.Player.Life))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -393,7 +401,9 @@ func main() {
 			RollSpeed: ROLL_SPEED,
 			Position:  Position{1, 1},
 			Sprite:    player_sprite,
-			Weapon:    WeaponBow},
+			Weapon:    WeaponBow,
+			Life:      PLAYER_LIFE,
+		},
 		Client: &client,
 		Level:  &level,
 		Server: &server,

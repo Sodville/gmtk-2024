@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -17,6 +18,8 @@ type Player struct {
 	RollDuration float64
 	RollCooldown float64
 	Invulnerable bool
+	GracePeriod  float64
+	Life         int
 
 	ShootCooldown float64
 }
@@ -96,12 +99,28 @@ func (p *Player) Update(game *Game) {
 		}
 	}
 
+	p.Life -= game.Client.PendingDamageTaken
+	game.Client.PendingDamageTaken = 0
+
 	// "Cooldown" animation when player stops moving
 	if p.Position == initial_pos {
 		p.MoveDuration = p.MoveDuration % 30
 		p.MoveDuration = max(0, p.MoveDuration-1)
 	} else {
 		p.MoveDuration += 1
+	}
+
+	p.GracePeriod = max(0, p.GracePeriod - .16)
+	if p.GracePeriod == 0 {
+		for _, enemy := range game.Enemies {
+			if enemy.Position.X < p.Position.X + TILE_SIZE &&
+			enemy.Position.X + TILE_SIZE > p.Position.X &&
+			enemy.Position.Y < p.Position.Y + TILE_SIZE &&
+			enemy.Position.Y + TILE_SIZE > p.Position.Y {
+				game.Client.SendHit(HitInfo{*game.Client.Self(), GetCharacterDamage(enemy.Type)})
+				p.GracePeriod = DEFAULT_GRACEPERIOD
+			}
+		}
 	}
 }
 

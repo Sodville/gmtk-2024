@@ -20,6 +20,7 @@ type ConnectedPlayer struct {
 	IsRolling      bool
 	IsReady        bool
 	TimeLastPacket uint64
+	Life		   int
 
 	// currently does not work
 	ID uint
@@ -325,8 +326,11 @@ func (s *Server) Update() {
 
 	enemies := []Enemy{}
 	for key := range s.Enemies {
-		s.Enemies[key].Update()
-		if s.Enemies[key].Life > 0 {
+		enemy := s.Enemies[key]
+
+		enemy.Update()
+
+		if enemy.Life > 0 {
 			enemies = append(enemies, s.Enemies[key])
 		}
 	}
@@ -436,6 +440,7 @@ func (s *Server) Host(mediation_server_ip string) {
 					false,
 					false,
 					packet_data.Packet.Timestamp,
+					PLAYER_LIFE,
 					uint(len(s.connection_keys)) + 1,
 				}
 				s.AddConnection(new_connection.String(), new_player)
@@ -481,6 +486,7 @@ func (s *Server) Host(mediation_server_ip string) {
 					false,
 					false,
 					packet_data.Packet.Timestamp,
+					PLAYER_LIFE,
 					uint(len(s.connection_keys)) + 1},
 				)
 				s.connection_keys_mutex.Unlock()
@@ -511,6 +517,10 @@ func (s *Server) Host(mediation_server_ip string) {
 				}
 				s.connections.Store(packet_data.Addr.String(), player)
 
+			case PacketTypePlayerHit:
+				var hitInfo HitInfo
+				dec.Decode(&hitInfo)
+				s.Broadcast(packet_data.Packet, hitInfo)
 			case PacketTypeBulletStart:
 				var bullet Bullet
 				dec.Decode(&bullet)

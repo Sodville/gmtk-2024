@@ -27,6 +27,7 @@ type Client struct {
 	readyPlayersCount   uint
 	playerCount         uint
 	ServerState         ServerState
+	PendingDamageTaken  int
 
 	ID uint
 }
@@ -56,6 +57,17 @@ type PlayerUpdateData struct {
 	Rotation  float64
 	Weapon    WeaponType
 	isRolling bool
+	Life      int
+}
+
+func (c *Client) Self() *ConnectedPlayer {
+	for _, player := range c.player_states {
+		if c.IsSelf(player.Connection.Addr) {
+			return &player.Connection
+		}
+	}
+
+	return nil
 }
 
 func (ps *PlayerState) GetInterpolatedPos() Position {
@@ -104,6 +116,18 @@ func (c *Client) IsSelf(addr net.UDPAddr) bool {
 	return false
 }
 
+func (c *Client) SendHit(hit HitInfo) {
+	packet := Packet{}
+	packet.PacketType = PacketTypePlayerHit
+
+	raw_data, err := SerializePacket(packet, hit)
+	if err != nil {
+		fmt.Println("error serializing bullet packet", err)
+	}
+
+	c.conn.WriteToUDP(raw_data, &c.host_addr)
+}
+
 func (c *Client) SendShoot(bullet Bullet) {
 	packet := Packet{}
 	packet.PacketType = PacketTypeBulletStart
@@ -146,7 +170,7 @@ func (c *Client) listen() {
 	}
 }
 
-func (c *Client) SendPosition(pos Position, rotation float64, weapon WeaponType, isRolling bool) {
+func (c *Client) SendPosition(pos Position, rotation float64, weapon WeaponType, isRolling bool, life int) {
 	packet := Packet{}
 	packet.PacketType = PacketTypeUpdateCurrentPlayer
 
@@ -156,6 +180,7 @@ func (c *Client) SendPosition(pos Position, rotation float64, weapon WeaponType,
 			rotation,
 			weapon,
 			isRolling,
+			life,
 		})
 	if err != nil {
 		fmt.Println("error serializing coordinate packet", err)
@@ -257,8 +282,7 @@ func (c *Client) HandlePacket() {
 			err := dec.Decode(&hitInfo)
 
 			if c.IsSelf(hitInfo.Player.Addr) {
-				// reduce health etc.
-				fmt.Println("you git hit!")
+				c.PendingDamageTaken = hitInfo.Damage
 			}
 
 			if err != nil {
@@ -315,7 +339,6 @@ func (c *Client) HandlePacket() {
 			var state ServerState
 			_ = dec.Decode(&state)
 
-			fmt.Println("got new server state", state.State)
 			c.ServerState = state
 			c.HandleServerState(c.ServerState)
 
@@ -323,8 +346,6 @@ func (c *Client) HandlePacket() {
 			var event Event
 			_ = dec.Decode(&event)
 
-			fmt.Println("got server event", event.Type, len(event.Enemies))
-			fmt.Println("size", packet_data.Packet.PayloadSize)
 			go func() { c.event_channel <- event }()
 
 		}
