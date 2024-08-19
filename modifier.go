@@ -84,6 +84,31 @@ func getModifiedValue(valueType ModifierType, modifiers []Modifier) float64 {
 	return base
 }
 
+func (m *Modifiers) getTotalModifiedValue() float64 {
+	base := 1.0
+	multi := make([]float64, 0)
+	for _, m := range m.Player {
+		if m.CalcType == ModifierCalcTypeMulti {
+			multi = append(multi, m.Value)
+		} else {
+			base += m.Value
+		}
+	}
+
+	for _, m := range m.Monster {
+		if m.CalcType == ModifierCalcTypeMulti {
+			multi = append(multi, m.Value)
+		} else {
+			base += m.Value
+		}
+	}
+
+	for _, n := range multi {
+		base *= 1 + n
+	}
+	return base
+}
+
 func (m *Modifiers) GetModifiedMonsterValue(valueType ModifierType) float64 {
 	return getModifiedValue(valueType, m.Monster)
 }

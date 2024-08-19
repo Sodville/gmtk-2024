@@ -282,9 +282,12 @@ func (s *Server) StartSpawnMonsterEvent() {
 	desiredX := r.Intn(totalWidth)
 	desiredY := r.Intn(totalHeight)
 
-	radius := 80
+	radius := 120
 	EnemiesToSpawn := []Enemy{}
-	for i := 0; i < r.Intn(MAX_SPAWN_COUNT); i++ {
+	spawnCount := r.Intn(MAX_SPAWN_COUNT)
+	spawnCount =+ int(s.Modifiers.getTotalModifiedValue())
+	log.Println(spawnCount)
+	for i := 0; i < spawnCount; i++ {
 		X := r.Intn(radius*2) - radius
 		Y := r.Intn(radius*2) - radius
 
