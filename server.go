@@ -287,9 +287,14 @@ func (s *Server) StartSpawnMonsterEvent() {
 		X := rand.Intn(radius*2) - radius
 		Y := rand.Intn(radius*2) - radius
 
+		s.connection_keys_mutex.RLock()
+		targetKey := s.connection_keys[rand.Intn(len(s.connection_keys))]
+		target, _ := loadFromSyncMap[ConnectedPlayer](targetKey, &s.connections)
+		s.connection_keys_mutex.RUnlock()
+
 		// clamping inside arena
-		x := float64(max(0, min(s.level.Map.Width * TILE_SIZE - TILE_SIZE, X + desiredX)))
-		y := float64(max(0, min(s.level.Map.Height * TILE_SIZE - TILE_SIZE, Y + desiredY)))
+		x := float64(max(0, min(s.level.Map.Width*TILE_SIZE-TILE_SIZE, X+desiredX)))
+		y := float64(max(0, min(s.level.Map.Height*TILE_SIZE-TILE_SIZE, Y+desiredY)))
 
 		life := GetLifeForCharacter(CharacterZombie)
 		life *= int(s.Modifiers.GetModifiedMonsterValue(ModifierTypeLife))
@@ -299,6 +304,9 @@ func (s *Server) StartSpawnMonsterEvent() {
 			0,
 			0,
 			life,
+			target.Addr.String(),
+			[]Position{},
+			2,
 		}
 
 		collision := s.level.CheckObjectCollision(enemy.Position)
@@ -348,7 +356,7 @@ func (s *Server) Update() {
 					bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
 					should_remove = true
 					log.Println("hit enemy", enemy.Life)
-					s.Enemies[key].Life = max(0, enemy.Life - int(damage))
+					s.Enemies[key].Life = max(0, enemy.Life-int(damage))
 
 				}
 			}
@@ -583,7 +591,9 @@ func (s *Server) Host(mediation_server_ip string) {
 				}
 
 			case PacketTypeClientToggleReady:
-				if s.started {continue}
+				if s.started {
+					continue
+				}
 				player, ok := loadFromSyncMap[ConnectedPlayer](packet_data.Addr.String(), &s.connections)
 				if ok {
 					player.IsReady = !player.IsReady

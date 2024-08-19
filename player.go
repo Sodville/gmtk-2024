@@ -57,7 +57,7 @@ func (p *Player) Update(game *Game) {
 	initial_pos := *player_pos
 
 	var speed float64
-	if ebiten.IsKeyPressed(ebiten.KeySpace) && p.RollCooldown == 0 && !p.IsGhost(){
+	if ebiten.IsKeyPressed(ebiten.KeySpace) && p.RollCooldown == 0 && !p.IsGhost() {
 		current_pos := initial_pos
 		current_pos.Y += TILE_SIZE
 		direction := math.Pi
@@ -91,7 +91,7 @@ func (p *Player) Update(game *Game) {
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		player_pos.Y -= speed
 		collided_object := game.Level.CheckObjectCollision(*player_pos)
-		if collided_object != nil && !p.IsGhost(){
+		if collided_object != nil && !p.IsGhost() {
 			player_pos.Y = collided_object.Y + collided_object.Height
 		}
 	}

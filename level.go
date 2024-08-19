@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image/png"
+	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/lafriks/go-tiled"
@@ -20,11 +21,12 @@ const (
 )
 
 type Level struct {
-	MapImage   *ebiten.Image
-	Map        *tiled.Map
-	Collisions []*tiled.Object
-	Spawn      *tiled.Object
-	BoonSpawns []Position
+	MapImage       *ebiten.Image
+	Map            *tiled.Map
+	Collisions     []*tiled.Object
+	Spawn          *tiled.Object
+	BoonSpawns     []Position
+	ObstacleMatrix [][]bool
 }
 
 func (l *Level) CheckObjectCollision(position Position) *tiled.Object {
@@ -38,6 +40,27 @@ func (l *Level) CheckObjectCollision(position Position) *tiled.Object {
 	}
 
 	return nil
+}
+
+// Returns 2D boolean array where true indicates
+// obstacles/collision used for path finding
+//
+// To get a specific point index as array[row][column] or array[y][x]
+func (l *Level) generateObstacleMatrix() [][]bool {
+	boolArray := make([][]bool, l.Map.Height)
+	for yTile := 0; yTile < l.Map.Height; yTile++ {
+		y := yTile*l.Map.TileHeight + l.Map.TileHeight/2 // want the coord in the middle of the tile
+		boolArray[yTile] = make([]bool, l.Map.Width)
+
+		for xTile := 0; xTile < l.Map.Width; xTile++ {
+			x := xTile*l.Map.TileWidth + l.Map.TileWidth/2
+
+			objPointer := l.CheckObjectCollision(Position{float64(x), float64(y)})
+			boolArray[yTile][xTile] = objPointer != nil
+		}
+	}
+
+	return boolArray
 }
 
 func LoadLevel(level *Level, levelType LevelEnum) {
@@ -95,6 +118,8 @@ func LoadLevel(level *Level, levelType LevelEnum) {
 			level.Collisions = object_group.Objects
 		}
 	}
+
+	level.ObstacleMatrix = level.generateObstacleMatrix()
 
 	for _, object_group := range level.Map.ObjectGroups {
 		if object_group.Name == "Misc" {

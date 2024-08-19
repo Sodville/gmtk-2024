@@ -47,11 +47,11 @@ const (
 	TransitionStateNone TransitionState = iota
 	TransitionStateStarted
 	TransitionStateEnding
- )
+)
 
 type Transition struct {
 	Position Position
-	Speed float64
+	Speed    float64
 }
 
 type Game struct {
@@ -67,7 +67,7 @@ type Game struct {
 	Boons      []Boon
 	LevelCount int
 
-	Transitions []Transition
+	Transitions     []Transition
 	TransitionState TransitionState
 	TransitionWidth float64
 
@@ -138,14 +138,13 @@ func (g *Game) Update() error {
 		}
 	}
 
-
 	for i := range g.Boons {
 		boon := g.Boons[i]
-		if g.FrameCount % 2 == 0 {
+		if g.FrameCount%2 == 0 {
 			if g.Player.Position.Distance(boon.Position) < BOON_INTERACT_RANGE {
-				boon.AnimationFrame = min(len(BOONSPRITES) - 1, boon.AnimationFrame + 1)
+				boon.AnimationFrame = min(len(BOONSPRITES)-1, boon.AnimationFrame+1)
 			} else {
-				boon.AnimationFrame = max(0, boon.AnimationFrame - 1)
+				boon.AnimationFrame = max(0, boon.AnimationFrame-1)
 			}
 		}
 		g.Boons[i] = boon
@@ -223,7 +222,7 @@ func (g *Game) Update() error {
 					bullet.Position.Y < enemy.Position.Y+TILE_SIZE &&
 					bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
 					hitEnemy = true
-					g.Enemies[key].Life = max(0, enemy.Life - int(damage))
+					g.Enemies[key].Life = max(0, enemy.Life-int(damage))
 				}
 			}
 		}
@@ -247,7 +246,7 @@ func (g *Game) Update() error {
 
 				for i := -.1; i < .1; i += .5 {
 					redColor := color.RGBA{178, 28, 28, 255}
-					g.Sparks = append(g.Sparks, Spark{5, sparkPos, bullet.Rotation + i * 2.5, 1.2, 3, redColor})
+					g.Sparks = append(g.Sparks, Spark{5, sparkPos, bullet.Rotation + i*2.5, 1.2, 3, redColor})
 				}
 
 			}
@@ -298,6 +297,7 @@ func (g *Game) Update() error {
 
 	enemies := []Enemy{}
 	for key := range g.Enemies {
+		g.Enemies[key].FindPath(g.Player.Position, g.Level.ObstacleMatrix)
 		g.Enemies[key].Update()
 		if g.Enemies[key].Life > 0 {
 			enemies = append(enemies, g.Enemies[key])
@@ -425,11 +425,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		op := text.DrawOptions{}
 
 		fontSize := 18.
-		op.GeoM.Translate(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+		op.GeoM.Translate(SCREEN_WIDTH/2, SCREEN_HEIGHT/2)
 		levelString := fmt.Sprintf("Level %d", g.LevelCount)
 
-		op.GeoM.Translate(-float64(len(levelString) / 2) * fontSize, -fontSize / 2)
-		text.Draw(screen, levelString, &text.GoTextFace{ Source : fontFaceSource, Size: fontSize }, &op)
+		op.GeoM.Translate(-float64(len(levelString)/2)*fontSize, -fontSize/2)
+		text.Draw(screen, levelString, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &op)
 	}
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d\t%d", g.Client.readyPlayersCount, g.Client.playerCount, g.Player.Life))
 }
@@ -460,18 +460,20 @@ func (g *Game) StartLevelTransition() {
 
 	g.TransitionWidth = float64(SCREEN_WIDTH / n)
 	for i := 0; i <= n; i++ {
-		g.Transitions = append(g.Transitions, Transition{ Position{ float64(i) * g.TransitionWidth, SCREEN_HEIGHT }, 4. + rand.Float64() * 10}, )
+		g.Transitions = append(g.Transitions, Transition{Position{float64(i) * g.TransitionWidth, SCREEN_HEIGHT}, 4. + rand.Float64()*10})
 	}
 }
 
 func (g *Game) UpdateTransition() {
-	if g.TransitionState == TransitionStateNone { return }
+	if g.TransitionState == TransitionStateNone {
+		return
+	}
 
 	transitions := []Transition{}
 	for i := range g.Transitions {
 		transition := g.Transitions[i]
 		if g.TransitionState == TransitionStateStarted {
-			transition.Position.Y = max(0, transition.Position.Y - transition.Speed)
+			transition.Position.Y = max(0, transition.Position.Y-transition.Speed)
 		} else if g.TransitionState == TransitionStateEnding {
 			transition.Position.Y -= transition.Speed
 		}
@@ -498,7 +500,7 @@ func (g *Game) HandleEvent() {
 			case NewLevelEvent:
 				g.ChangeLevel(event_data.Level)
 				g.TransitionState = TransitionStateEnding
-				g.LevelCount ++
+				g.LevelCount++
 			case SpawnEnemiesEvent:
 				g.Enemies = append(g.Enemies, event_data.Enemies...)
 			case SpawnBoonEvent:

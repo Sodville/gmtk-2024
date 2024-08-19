@@ -56,7 +56,7 @@ func (m *Modifier) GetString(prefix string) string {
 		r = "%s gain %.0f%% %s ..."
 	}
 
-	return fmt.Sprintf(r, prefix, m.Value * 100, moreOrIncreased)
+	return fmt.Sprintf(r, prefix, m.Value*100, moreOrIncreased)
 }
 
 type Modifiers struct {
@@ -123,8 +123,8 @@ func (m *Modifiers) Add(newModifiers Modifiers) {
 }
 
 type Boon struct {
-	Modifiers Modifiers
-	Position  Position
+	Modifiers      Modifiers
+	Position       Position
 	AnimationFrame int
 }
 
@@ -140,24 +140,23 @@ func (b *Boon) Draw(screen *ebiten.Image, camera *Camera) {
 
 		playerString := b.Modifiers.Player[0].GetString("Players")
 		monsterString := b.Modifiers.Monster[0].GetString("Monsters")
-		textOp.ColorScale.ScaleWithColor(color.RGBA{ 20, 140, 20, 255 })
+		textOp.ColorScale.ScaleWithColor(color.RGBA{20, 140, 20, 255})
 
-		textOp.GeoM.Translate(-float64(len(playerString) / 2) * fontSize, -fontSize * 4)
-		text.Draw(screen, playerString, &text.GoTextFace{ Source : fontFaceSource, Size: fontSize }, &textOp )
-
+		textOp.GeoM.Translate(-float64(len(playerString)/2)*fontSize, -fontSize*4)
+		text.Draw(screen, playerString, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
 
 		textOp = text.DrawOptions{}
 		textOp.GeoM = op.GeoM
-		textOp.ColorScale.ScaleWithColor(color.RGBA{ 200, 20, 20, 255 })
+		textOp.ColorScale.ScaleWithColor(color.RGBA{200, 20, 20, 255})
 
-		textOp.GeoM.Translate(-float64(len(monsterString) / 2) * fontSize, -fontSize * 2)
-		text.Draw(screen, monsterString, &text.GoTextFace{ Source : fontFaceSource, Size: fontSize }, &textOp )
+		textOp.GeoM.Translate(-float64(len(monsterString)/2)*fontSize, -fontSize*2)
+		text.Draw(screen, monsterString, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
 
 		textOp = text.DrawOptions{}
 		textOp.GeoM = op.GeoM
 		info := "press 'e' to choose"
 
-		textOp.GeoM.Translate(-float64(len(info) / 2) * fontSize, -fontSize)
-		text.Draw(screen, info, &text.GoTextFace{ Source : fontFaceSource, Size: fontSize }, &textOp )
+		textOp.GeoM.Translate(-float64(len(info)/2)*fontSize, -fontSize)
+		text.Draw(screen, info, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
 	}
 }

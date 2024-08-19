@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"log"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -62,6 +63,9 @@ type Enemy struct {
 	MoveDuration int
 	Lifetime     uint
 	Life         int
+	Target       string
+	Path         []Position
+	Speed        float64
 }
 
 // we are cheating here and introducing game to the render because we can't introduce it for the update
@@ -115,10 +119,40 @@ func (e *Enemy) Update() {
 
 	initial_pos := e.Position
 
+	if e.Path != nil && len(e.Path) > 1 {
+		// Determine if we are close enough to "next" tile to pop it from path
+		if e.Position.Distance(Position{e.Path[0].X * TILE_SIZE, e.Path[0].Y * TILE_SIZE}) < 20 {
+			// TODO: maybe redo this to reduce reallocations if it becomes a problem
+			// underlying list will grow indefinitely
+			_, e.Path = e.Path[0], e.Path[1:]
+		}
+
+		dX := e.Path[0].X*TILE_SIZE - e.Position.X
+		dY := e.Path[0].Y*TILE_SIZE - e.Position.Y
+		if dX < 0 {
+			e.Position.X += max(-e.Speed, dX)
+		} else {
+			e.Position.X += min(e.Speed, dX)
+		}
+		if dY < 0 {
+			e.Position.Y += max(-e.Speed, dY)
+		} else {
+			e.Position.Y += min(e.Speed, dY)
+		}
+	}
+
 	if e.Position == initial_pos {
 		e.MoveDuration = e.MoveDuration % 30
 		e.MoveDuration = max(0, e.MoveDuration-1)
 	} else {
 		e.MoveDuration += 1
 	}
+}
+
+func (e *Enemy) FindPath(target Position, obstacles [][]bool) {
+	path := FindPath(e.Position, target, obstacles)
+	if path == nil {
+		return
+	}
+	e.Path = path
 }
