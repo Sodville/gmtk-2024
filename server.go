@@ -172,6 +172,17 @@ func (s *Server) UpdateState() {
 			s.State.Context = ServerStateContext{}
 			s.State.Context.Level = LevelOne
 
+			packet := Packet{}
+			packet.PacketType = PacketTypeMatchStart
+
+			data := ReconcilliationData{"Hello, server!"}
+			raw_data, _ := SerializePacket(packet, data)
+			_, err := s.conn.WriteToUDP(raw_data, &s.mediation_server)
+
+			if err != nil {
+				fmt.Println("error disconnecting from mediation server", err)
+			}
+
 			LoadLevel(s.level, s.State.Context.Level)
 		}
 	} else if s.State.State == ServerStatePlaying {

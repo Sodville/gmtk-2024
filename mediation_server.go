@@ -136,6 +136,7 @@ func RunMediationServer() {
 					fmt.Println("error during decoding", err)
 				}
 
+				fmt.Printf("%s's server has started, and has been removed from eligible lobbies\n", packet_data.Addr.String())
 				delete(host_map, inner_data.Name)
 			}
 		}
