@@ -1,23 +1,26 @@
 package main
 
 import (
+	"image/color"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
+var polygonImage *ebiten.Image = ebiten.NewImage(1, 1)
 
 type Spark struct {
 	Lifetime float64
 	Position Position
-	Angle    int
+	Angle    float64
 	Scale    float64
 	Force    float64
+	Color    color.RGBA
 }
 
 func (s *Spark) calculateMovement() (float64, float64) {
-	x := math.Cos(float64(s.Angle) * s.Lifetime * s.Force)
-	y := math.Sin(float64(s.Angle) * s.Lifetime * s.Force)
+	x := math.Cos(s.Angle) * s.Lifetime * s.Force * .1
+	y := math.Sin(s.Angle) * s.Lifetime * s.Force * .1
 
 	return x, y
 }
@@ -32,22 +35,23 @@ func (s *Spark) Update() {
 }
 
 func (s *Spark) Draw(screen *ebiten.Image, camera *Camera) {
+	angle := s.Angle
 	points := []Position{
 		{
-			X: s.Position.X + math.Cos(float64(s.Angle))*s.Lifetime*s.Scale,
-			Y: s.Position.Y + camera.Offset.Y + math.Sin(float64(s.Angle))*s.Lifetime*s.Scale,
+			X: s.Position.X - camera.Offset.X + math.Cos(angle)*s.Lifetime*s.Scale,
+			Y: s.Position.Y - camera.Offset.Y + math.Sin(angle)*s.Lifetime*s.Scale,
 		},
 		{
-			X: s.Position.X + camera.Offset.X + math.Cos(float64(s.Angle)+math.Pi/2)*s.Lifetime*s.Scale*0.3,
-			Y: s.Position.Y + camera.Offset.Y + math.Sin(float64(s.Angle)+math.Pi/2)*s.Lifetime*s.Scale*0.3,
+			X: s.Position.X - camera.Offset.X + math.Cos(angle+math.Pi/2)*s.Lifetime*s.Scale*0.3,
+			Y: s.Position.Y - camera.Offset.Y + math.Sin(angle+math.Pi/2)*s.Lifetime*s.Scale*0.3,
 		},
 		{
-			X: s.Position.X + camera.Offset.X - math.Cos(float64(s.Angle))*s.Lifetime*s.Scale*3.5,
-			Y: s.Position.Y + camera.Offset.Y - math.Sin(float64(s.Angle))*s.Lifetime*s.Scale*3.5,
+			X: s.Position.X - camera.Offset.X - math.Cos(angle)*s.Lifetime*s.Scale*3.5,
+			Y: s.Position.Y - camera.Offset.Y - math.Sin(angle)*s.Lifetime*s.Scale*3.5,
 		},
 		{
-			X: s.Position.X + camera.Offset.X + math.Cos(float64(s.Angle)-math.Pi/2)*s.Lifetime*s.Scale*0.3,
-			Y: s.Position.Y + camera.Offset.Y - math.Sin(float64(s.Angle)+math.Pi/2)*s.Lifetime*s.Scale*0.3,
+			X: s.Position.X - camera.Offset.X + math.Cos(angle-math.Pi/2)*s.Lifetime*s.Scale*0.3,
+			Y: s.Position.Y - camera.Offset.Y - math.Sin(angle+math.Pi/2)*s.Lifetime*s.Scale*0.3,
 		},
 	}
 
@@ -59,15 +63,9 @@ func (s *Spark) Draw(screen *ebiten.Image, camera *Camera) {
 	path.Close()
 
 	vs, is := path.AppendVerticesAndIndicesForFilling(nil, nil)
-	for i := range vs {
-		vs[i].SrcX = 1
-		vs[i].SrcY = 1
-		vs[i].ColorR = 1
-		vs[i].ColorG = 1
-		vs[i].ColorB = 1
-		vs[i].ColorA = 1
-	}
+	polygonImage.Fill(s.Color)
 
-	screen.DrawTriangles(vs, is, emptySubImage, &ebiten.DrawTrianglesOptions{})
+
+	screen.DrawTriangles(vs, is, polygonImage, &ebiten.DrawTrianglesOptions{})
 
 }

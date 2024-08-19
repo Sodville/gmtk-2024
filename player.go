@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -45,13 +44,23 @@ func (p *Player) Draw(screen *ebiten.Image, camera Camera) {
 func (p *Player) Update(game *Game) {
 	player_pos := &p.Position
 	initial_pos := *player_pos
+
 	var speed float64
 	if ebiten.IsKeyPressed(ebiten.KeySpace) && p.RollCooldown == 0 {
+		current_pos := initial_pos
+		current_pos.Y += TILE_SIZE
+		direction := math.Pi
+
 		if ebiten.IsKeyPressed(ebiten.KeyD) {
 			p.RollDuration = math.Pi * -2
 		} else {
 			p.RollDuration = math.Pi * 2
+			current_pos.X += TILE_SIZE
+			direction = 0
 		}
+		game.Sparks = append(game.Sparks, Spark{ 2, current_pos, direction - .16, 3, 1.5, WHITE})
+		game.Sparks = append(game.Sparks, Spark{ 2, current_pos, direction + .16, 3, 1.5, WHITE})
+
 		p.Invulnerable = true
 	}
 

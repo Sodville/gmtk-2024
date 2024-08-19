@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"image/color"
 	"log"
 	"math"
 
@@ -29,6 +30,7 @@ const (
 	DEFAULT_GRACEPERIOD			= 6
 )
 
+var WHITE color.RGBA = color.RGBA{255,255,255,255}
 var emptyImage = ebiten.NewImage(3, 3)
 var emptySubImage = emptyImage.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)
 
@@ -124,6 +126,15 @@ func (g *Game) Update() error {
 			0,
 			GetWeaponFriendlyFire(g.Player.Weapon)},
 		)
+
+		if WeaponHasSpark(g.Player.Weapon) {
+			current_pos.X += TILE_SIZE / 2 + math.Cos(g.Player.Rotation) * TILE_SIZE
+			current_pos.Y += TILE_SIZE / 2 + math.Sin(g.Player.Rotation) * TILE_SIZE
+			g.Sparks = append(g.Sparks, Spark{ 4, current_pos, g.Player.Rotation - .5, 1, 1, WHITE})
+			g.Sparks = append(g.Sparks, Spark{ 4, current_pos, g.Player.Rotation, 1, 1, WHITE})
+			g.Sparks = append(g.Sparks, Spark{ 4, current_pos, g.Player.Rotation + .5, 1, 1, WHITE})
+		}
+
 		g.Player.ShootCooldown = GetWeaponCooldown(g.Player.Weapon)
 	}
 
@@ -171,7 +182,22 @@ func (g *Game) Update() error {
 
 		collision_object := g.Level.CheckObjectCollision(g.Client.bullets[i].Position)
 		if collision_object != nil || hitEnemy {
-			g.Sparks = append(g.Sparks, Spark{2, bullet.Position, int(bullet.Rotation), 100, 2})
+
+			sparkPos := bullet.Position
+			sparkPos.X += 4
+			sparkPos.Y += 4
+
+			if collision_object != nil {
+				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation - .5, 1, 1, color.RGBA{255, 255, 255, 255}})
+				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation, 1, 1, color.RGBA{192, 182, 200, 255}})
+				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation + .5, 1, 1, color.RGBA{255, 255, 255, 255}})
+			} else if hitEnemy {
+				redColor := color.RGBA{ 255, 28, 28, 255 }
+				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation - .5, 1, 1, redColor})
+				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation, 1, 1, color.RGBA{192, 182, 200, 255}})
+				g.Sparks = append(g.Sparks, Spark{ 4, sparkPos, -bullet.Rotation + .5, 1, 1, redColor})
+
+			}
 			if bullet.WeaponType == WeaponBow && !hitEnemy {
 				g.Debris = append(g.Debris, bullet)
 			}
@@ -207,7 +233,8 @@ func (g *Game) Update() error {
 	g.Client.player_states_mutex.Unlock()
 
 	sparks := []Spark{}
-	for _, spark := range g.Sparks {
+	for key := range g.Sparks {
+		spark := g.Sparks[key]
 		spark.Update()
 
 		if spark.Lifetime != 0 {
@@ -236,7 +263,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.Player.Draw(screen, g.Camera)
 
 	for _, enemy := range g.Enemies {
-		enemy.Draw(screen, g.Camera)
+		enemy.Draw(screen, g.Camera, g)
 	}
 
 	g.Client.player_states_mutex.RLock()

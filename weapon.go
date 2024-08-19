@@ -70,6 +70,15 @@ func GetWeaponFriendlyFire(weapon WeaponType) bool {
 	}
 }
 
+func WeaponHasSpark(weapon WeaponType) bool {
+	switch weapon {
+	case WeaponBow:
+		return false
+	default:
+		return true
+	}
+}
+
 func DrawWeapon(screen *ebiten.Image, camera Camera, w WeaponType, player Player) {
 	// Half the size of sprite
 	distance := 8.
