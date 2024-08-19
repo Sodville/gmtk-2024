@@ -156,11 +156,12 @@ func (g *Game) Update() error {
 	rotation := CalculateOrientationRads(g.Camera, g.Player.GetCenter())
 	g.Player.Rotation = rotation
 
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) && g.Player.ShootCooldown == 0 && g.Player.RollDuration == 0 {
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) && g.Player.ShootCooldown == 0 && g.Player.RollDuration == 0 && !g.Player.IsGhost() {
 		current_pos := g.Player.Position
 		speed := GetWeaponSpeed(g.Player.Weapon)
-		speed *= float32(g.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeBulletSpeed))
+		speedMulti := g.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeBulletSpeed)
 
+		speed *= float32(speedMulti)
 		g.Client.SendShoot(Bullet{
 			current_pos,
 			rotation,
@@ -171,11 +172,12 @@ func (g *Game) Update() error {
 		)
 
 		if WeaponHasSpark(g.Player.Weapon) {
+			scale := g.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeDamage)
 			current_pos.X += TILE_SIZE/2 + math.Cos(g.Player.Rotation)*TILE_SIZE
 			current_pos.Y += TILE_SIZE/2 + math.Sin(g.Player.Rotation)*TILE_SIZE
-			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation - .5, 1, 1, WHITE})
-			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation, 1, 1, WHITE})
-			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation + .5, 1, 1, WHITE})
+			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation - .5, scale, speedMulti, WHITE})
+			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation, scale, speedMulti, WHITE})
+			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation + .5, scale, speedMulti, WHITE})
 		}
 
 		weaponCooldown := GetWeaponCooldown(g.Player.Weapon)
@@ -239,9 +241,14 @@ func (g *Game) Update() error {
 				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation + .5, 1, 1, color.RGBA{255, 255, 255, 255}})
 			} else if hitEnemy {
 				redColor := color.RGBA{255, 28, 28, 255}
-				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation - .5, 1, 1, redColor})
-				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation, 1, 1, color.RGBA{192, 182, 200, 255}})
-				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation + .5, 1, 1, redColor})
+				g.Sparks = append(g.Sparks, Spark{4, sparkPos, bullet.Rotation - .5, 2, 2, redColor})
+				g.Sparks = append(g.Sparks, Spark{4, sparkPos, bullet.Rotation, 2, 2, color.RGBA{192, 182, 200, 255}})
+				g.Sparks = append(g.Sparks, Spark{4, sparkPos, bullet.Rotation + .5, 2, 2, redColor})
+
+				for i := -.1; i < .1; i += .5 {
+					redColor := color.RGBA{178, 28, 28, 255}
+					g.Sparks = append(g.Sparks, Spark{5, sparkPos, bullet.Rotation + i * 2.5, 1.2, 3, redColor})
+				}
 
 			}
 			if bullet.WeaponType == WeaponBow && !hitEnemy {
@@ -330,29 +337,36 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		RenderPos := state.GetInterpolatedPos()
 		op.GeoM.Translate(RenderPos.X, RenderPos.Y)
 		op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
-		screen.DrawImage(g.Player.Sprite, &op)
 
-		distance := 8.
+		if state.Connection.Life > 0 {
+			screen.DrawImage(g.Player.Sprite, &op)
+			distance := 8.
 
-		op = ebiten.DrawImageOptions{}
-		op.GeoM.Translate(-distance, -distance)
+			op = ebiten.DrawImageOptions{}
+			op.GeoM.Translate(-distance, -distance)
 
-		if math.Pi*.5 < state.Connection.Rotation || state.Connection.Rotation < -math.Pi*.5 {
-			op.GeoM.Scale(1, -1)
+			if math.Pi*.5 < state.Connection.Rotation || state.Connection.Rotation < -math.Pi*.5 {
+				op.GeoM.Scale(1, -1)
+			}
+			op.GeoM.Rotate(state.Connection.Rotation)
+
+			op.GeoM.Translate(distance, distance)
+
+			x := math.Cos(state.Connection.Rotation)
+			y := math.Sin(state.Connection.Rotation)
+
+			op.GeoM.Translate(x*distance, y*distance)
+
+			op.GeoM.Translate(RenderPos.X, RenderPos.Y)
+			op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
+
+			screen.DrawImage(GetWeaponSprite(state.Connection.Weapon), &op)
+
+		} else {
+			op.ColorScale.SetA(185)
+			screen.DrawImage(GhostSprite, &op)
 		}
-		op.GeoM.Rotate(state.Connection.Rotation)
 
-		op.GeoM.Translate(distance, distance)
-
-		x := math.Cos(state.Connection.Rotation)
-		y := math.Sin(state.Connection.Rotation)
-
-		op.GeoM.Translate(x*distance, y*distance)
-
-		op.GeoM.Translate(RenderPos.X, RenderPos.Y)
-		op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
-
-		screen.DrawImage(GetWeaponSprite(state.Connection.Weapon), &op)
 	}
 	g.Client.player_states_mutex.RUnlock()
 

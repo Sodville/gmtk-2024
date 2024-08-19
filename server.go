@@ -268,28 +268,24 @@ func (s *Server) CheckState() {
 	}
 }
 func (s *Server) SetSpawnCooldown() float64 {
-	r := rand.New(rand.NewSource(99))
-
-	return float64(MINIMUM_SPAWN_COOLDOWN + r.Intn(MINIMUM_SPAWN_COOLDOWN))
+	return float64(MINIMUM_SPAWN_COOLDOWN + rand.Intn(MINIMUM_SPAWN_COOLDOWN))
 }
 
 func (s *Server) StartSpawnMonsterEvent() {
 	totalWidth := s.level.Map.Width * TILE_SIZE
 	totalHeight := s.level.Map.Height * TILE_SIZE
 
-	r := rand.New(rand.NewSource(time.Now().Unix()))
-
-	desiredX := r.Intn(totalWidth)
-	desiredY := r.Intn(totalHeight)
+	desiredX := rand.Intn(totalWidth)
+	desiredY := rand.Intn(totalHeight)
 
 	radius := 120
 	EnemiesToSpawn := []Enemy{}
-	spawnCount := r.Intn(MAX_SPAWN_COUNT)
-	spawnCount =+ int(s.Modifiers.getTotalModifiedValue())
+	spawnCount := rand.Intn(MAX_SPAWN_COUNT)
+	spawnCount += int(s.Modifiers.getTotalModifiedValue())
 	log.Println(spawnCount)
 	for i := 0; i < spawnCount; i++ {
-		X := r.Intn(radius*2) - radius
-		Y := r.Intn(radius*2) - radius
+		X := rand.Intn(radius*2) - radius
+		Y := rand.Intn(radius*2) - radius
 
 		// clamping inside arena
 		x := float64(max(0, min(s.level.Map.Width * TILE_SIZE - TILE_SIZE, X + desiredX)))
@@ -581,6 +577,7 @@ func (s *Server) Host(mediation_server_ip string) {
 					player.Weapon = playerUpdate.Weapon
 					player.IsRolling = playerUpdate.isRolling
 					player.TimeLastPacket = packet_data.Packet.Timestamp
+					player.Life = playerUpdate.Life
 
 					s.connections.Store(packet_data.Addr.String(), player)
 				}

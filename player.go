@@ -23,6 +23,8 @@ type Player struct {
 	ShootCooldown float64
 }
 
+var GhostSprite *ebiten.Image = GetSpriteByID(121)
+
 func (p *Player) Draw(screen *ebiten.Image, camera Camera) {
 	op := ebiten.DrawImageOptions{}
 	if p.RollDuration != 0 {
@@ -37,8 +39,17 @@ func (p *Player) Draw(screen *ebiten.Image, camera Camera) {
 	op.GeoM.Translate(p.Position.X, p.Position.Y)
 	op.GeoM.Translate(-camera.Offset.X, -camera.Offset.Y)
 
-	screen.DrawImage(p.Sprite, &op)
-	DrawWeapon(screen, camera, p.Weapon, *p)
+	if !p.IsGhost() {
+		screen.DrawImage(p.Sprite, &op)
+		DrawWeapon(screen, camera, p.Weapon, *p)
+	} else {
+		op.ColorScale.SetA(185)
+		screen.DrawImage(GhostSprite, &op)
+	}
+}
+
+func (p *Player) IsGhost() bool {
+	return p.Life < 1
 }
 
 func (p *Player) Update(game *Game) {
@@ -46,7 +57,7 @@ func (p *Player) Update(game *Game) {
 	initial_pos := *player_pos
 
 	var speed float64
-	if ebiten.IsKeyPressed(ebiten.KeySpace) && p.RollCooldown == 0 {
+	if ebiten.IsKeyPressed(ebiten.KeySpace) && p.RollCooldown == 0 && !p.IsGhost(){
 		current_pos := initial_pos
 		current_pos.Y += TILE_SIZE
 		direction := math.Pi
@@ -80,7 +91,7 @@ func (p *Player) Update(game *Game) {
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		player_pos.Y -= speed
 		collided_object := game.Level.CheckObjectCollision(*player_pos)
-		if collided_object != nil {
+		if collided_object != nil && !p.IsGhost(){
 			player_pos.Y = collided_object.Y + collided_object.Height
 		}
 	}
@@ -88,7 +99,7 @@ func (p *Player) Update(game *Game) {
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
 		player_pos.Y += speed
 		collided_object := game.Level.CheckObjectCollision(*player_pos)
-		if collided_object != nil {
+		if collided_object != nil && !p.IsGhost() {
 			player_pos.Y = collided_object.Y - TILE_SIZE
 		}
 	}
@@ -96,7 +107,7 @@ func (p *Player) Update(game *Game) {
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
 		player_pos.X -= speed
 		collided_object := game.Level.CheckObjectCollision(*player_pos)
-		if collided_object != nil {
+		if collided_object != nil && !p.IsGhost() {
 			player_pos.X = collided_object.X + collided_object.Width
 		}
 	}
@@ -104,7 +115,7 @@ func (p *Player) Update(game *Game) {
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
 		player_pos.X += speed
 		collided_object := game.Level.CheckObjectCollision(*player_pos)
-		if collided_object != nil {
+		if collided_object != nil && !p.IsGhost() {
 			player_pos.X = collided_object.X - TILE_SIZE
 		}
 	}
@@ -121,7 +132,7 @@ func (p *Player) Update(game *Game) {
 	}
 
 	p.GracePeriod = max(0, p.GracePeriod-.16)
-	if p.GracePeriod == 0 && !p.Invulnerable {
+	if p.GracePeriod == 0 && !p.Invulnerable && !p.IsGhost() {
 		for _, enemy := range game.Enemies {
 			if enemy.Position.X < p.Position.X+TILE_SIZE &&
 				enemy.Position.X+TILE_SIZE > p.Position.X &&
