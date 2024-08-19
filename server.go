@@ -168,7 +168,11 @@ func (s *Server) getWaveDensity() int {
 }
 
 func (s *Server) getNextLevel() LevelEnum {
-	return LevelOne
+	n := rand.Intn(int(LevelCount))
+	if n == 0 {
+		return LevelOne
+	}
+	return LevelEnum(n)
 }
 
 func (s *Server) makeRandomModifiers() []Modifiers {

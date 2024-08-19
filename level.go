@@ -15,6 +15,7 @@ type LevelEnum uint
 const (
 	LobbyLevel LevelEnum = iota
 	LevelOne
+	LevelTwo
 	LevelCount
 )
 
