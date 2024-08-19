@@ -275,8 +275,8 @@ func (s *Server) StartSpawnMonsterEvent() {
 		Y := r.Intn(radius*2) - radius
 
 		// clamping inside arena
-		x := float64(max(0, min(s.level.Map.Width * TILE_SIZE, X + desiredX)))
-		y := float64(max(0, min(s.level.Map.Height * TILE_SIZE, Y + desiredY)))
+		x := float64(max(0, min(s.level.Map.Width * TILE_SIZE - TILE_SIZE, X + desiredX)))
+		y := float64(max(0, min(s.level.Map.Height * TILE_SIZE - TILE_SIZE, Y + desiredY)))
 
 		enemy := Enemy{
 			CharacterZombie,
