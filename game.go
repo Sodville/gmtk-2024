@@ -1,14 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"image/color"
 	"log"
 	"math"
+	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 const (
@@ -32,6 +37,22 @@ const (
 )
 
 var WHITE color.RGBA = color.RGBA{255, 255, 255, 255}
+var BLACK color.RGBA = color.RGBA{0, 0, 0, 255}
+
+type TransitionState int
+
+var fontFaceSource *text.GoTextFaceSource
+
+const (
+	TransitionStateNone TransitionState = iota
+	TransitionStateStarted
+	TransitionStateEnding
+ )
+
+type Transition struct {
+	Position Position
+	Speed float64
+}
 
 type Game struct {
 	Player     Player
@@ -44,6 +65,11 @@ type Game struct {
 	Enemies    []Enemy
 	Debris     []Bullet
 	Boons      []Boon
+	LevelCount int
+
+	Transitions []Transition
+	TransitionState TransitionState
+	TransitionWidth float64
 
 	toggleCooldown        int
 	event_handler_running bool
@@ -256,6 +282,8 @@ func (g *Game) Update() error {
 	}
 	g.Enemies = enemies
 
+	g.UpdateTransition()
+
 	return nil
 
 }
@@ -358,6 +386,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		spark.Draw(screen, &g.Camera)
 	}
 
+	if g.TransitionState != TransitionStateNone {
+		for i := range g.Transitions {
+			transition := g.Transitions[i]
+			vector.DrawFilledRect(screen, float32(transition.Position.X), float32(transition.Position.Y), float32(g.TransitionWidth), SCREEN_HEIGHT, BLACK, true)
+		}
+	}
+	op := text.DrawOptions{}
+
+	op.GeoM.Translate(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+	text.Draw(screen, fmt.Sprintf("Level %d", g.LevelCount), &text.GoTextFace{ Source : fontFaceSource, Size: 12 }, &op)
+
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d\t%d", g.Client.readyPlayersCount, g.Client.playerCount, g.Player.Life))
 }
 
@@ -380,6 +419,41 @@ func (g *Game) ChangeLevel(levelType LevelEnum) {
 	}
 }
 
+func (g *Game) StartLevelTransition() {
+	n := rand.Intn(5) + 10
+
+	g.TransitionState = TransitionStateStarted
+
+	g.TransitionWidth = float64(SCREEN_WIDTH / n)
+	for i := 0; i <= n; i++ {
+		g.Transitions = append(g.Transitions, Transition{ Position{ float64(i) * g.TransitionWidth, SCREEN_HEIGHT }, 4. + rand.Float64() * 10}, )
+	}
+}
+
+func (g *Game) UpdateTransition() {
+	if g.TransitionState == TransitionStateNone { return }
+
+	transitions := []Transition{}
+	for i := range g.Transitions {
+		transition := g.Transitions[i]
+		if g.TransitionState == TransitionStateStarted {
+			transition.Position.Y = max(0, transition.Position.Y - transition.Speed)
+		} else if g.TransitionState == TransitionStateEnding {
+			transition.Position.Y -= transition.Speed
+		}
+
+		if transition.Position.Y > -SCREEN_HEIGHT {
+			transitions = append(transitions, transition)
+		}
+	}
+
+	if len(transitions) == 0 {
+		g.TransitionState = TransitionStateNone
+	}
+
+	g.Transitions = transitions
+}
+
 func (g *Game) HandleEvent() {
 	g.event_handler_running = true
 	for {
@@ -389,6 +463,8 @@ func (g *Game) HandleEvent() {
 			switch event_data.Type {
 			case NewLevelEvent:
 				g.ChangeLevel(event_data.Level)
+				g.TransitionState = TransitionStateEnding
+				g.LevelCount ++
 			case SpawnEnemiesEvent:
 				g.Enemies = append(g.Enemies, event_data.Enemies...)
 			case SpawnBoonEvent:
@@ -397,6 +473,7 @@ func (g *Game) HandleEvent() {
 				}
 			case PrepareNewLevelEvent:
 				g.Boons = []Boon{}
+				g.StartLevelTransition()
 				// maybe make them do the cool
 			}
 		}
@@ -420,6 +497,13 @@ func main() {
 
 	ebiten.SetWindowSize(RENDER_WIDTH, RENDER_HEIGHT)
 	ebiten.SetWindowTitle("Hello, World!")
+
+	s, err := text.NewGoTextFaceSource(bytes.NewReader(fonts.MPlus1pRegular_ttf))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fontFaceSource = s
 
 	client := Client{}
 	var server Server
