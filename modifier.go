@@ -71,3 +71,8 @@ func (m *Modifiers) GetModifiedMonsterValue(valueType ModifierType) float64 {
 func (m *Modifiers) GetModifiedPlayerValue(valueType ModifierType) float64 {
 	return getModifiedValue(valueType, m.Player)
 }
+
+func (m *Modifiers) Add(newModifiers Modifiers) {
+	m.Monster = append(m.Monster, newModifiers.Monster...)
+	m.Player = append(m.Player, newModifiers.Player...)
+}

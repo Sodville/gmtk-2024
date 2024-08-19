@@ -67,6 +67,8 @@ const (
 	PacketTypeClientToggleReady
 	PacketTypeServerStateChanged
 	PacketTypePlayerRoll
+	PacketTypeModifiersUpdated
+	PacketTypeModifierChosen
 )
 
 type NegotiationResponse struct {

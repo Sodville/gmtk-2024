@@ -28,6 +28,7 @@ type Client struct {
 	playerCount         uint
 	ServerState         ServerState
 	PendingDamageTaken  int
+	Modifiers			Modifiers
 
 	ID uint
 }
@@ -114,6 +115,18 @@ func (c *Client) IsSelf(addr net.UDPAddr) bool {
 	}
 
 	return false
+}
+
+func (c *Client) SendChosenModifiers(modifiers Modifiers) {
+	packet := Packet{}
+	packet.PacketType = PacketTypeModifierChosen
+
+	raw_data, err := SerializePacket(packet, modifiers)
+	if err != nil {
+		fmt.Println("error serializing modifiers packet", err)
+	}
+
+	c.conn.WriteToUDP(raw_data, &c.host_addr)
 }
 
 func (c *Client) SendHit(hit HitInfo) {
@@ -341,6 +354,9 @@ func (c *Client) HandlePacket() {
 
 			c.ServerState = state
 			c.HandleServerState(c.ServerState)
+
+		case PacketTypeModifiersUpdated:
+			_ = dec.Decode(&c.Modifiers)
 
 		case PacketTypeServerEvent:
 			var event Event

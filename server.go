@@ -70,6 +70,7 @@ type Server struct {
 	State                 ServerState
 	Enemies               []Enemy
 	SpawnCooldown         float64
+	Modifiers             Modifiers
 }
 
 func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {
@@ -521,6 +522,17 @@ func (s *Server) Host(mediation_server_ip string) {
 				var hitInfo HitInfo
 				dec.Decode(&hitInfo)
 				s.Broadcast(packet_data.Packet, hitInfo)
+
+			case PacketTypeModifierChosen:
+				var modifiers Modifiers
+				dec.Decode(&modifiers)
+
+				s.Modifiers.Add(modifiers)
+				packet := Packet{}
+				packet.PacketType = PacketTypeModifiersUpdated
+
+				s.Broadcast(packet, s.Modifiers)
+
 			case PacketTypeBulletStart:
 				var bullet Bullet
 				dec.Decode(&bullet)
