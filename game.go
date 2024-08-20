@@ -538,7 +538,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			fontSize := 8.
 			msg := "press 'e' to host"
 			textOp.GeoM.Translate(-float64(len(msg)/2)*fontSize, -fontSize)
-			text.Draw(screen, msg, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
+			drawTextWithStroke(
+				screen,
+				msg,
+				&text.GoTextFace{Source: fontFaceSource, Size: fontSize},
+				color.RGBA{255, 255, 255, 255},
+				color.RGBA{0, 0, 0, 255},
+				2,
+				&textOp,
+			)
 		}
 	}
 
@@ -559,7 +567,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				msg = "'enter' to confirm"
 			}
 			textOp.GeoM.Translate(-float64(len(msg)/2)*fontSize, -fontSize)
-			text.Draw(screen, msg, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
+			drawTextWithStroke(
+				screen,
+				msg,
+				&text.GoTextFace{Source: fontFaceSource, Size: fontSize},
+				color.RGBA{255, 255, 255, 255},
+				color.RGBA{0, 0, 0, 255},
+				2,
+				&textOp,
+			)
 		}
 	}
 
@@ -567,7 +583,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	textOp.GeoM.Translate(SCREEN_WIDTH/2, 0)
 	fontSize := 16.
 	textOp.GeoM.Translate(-float64(len(g.BigTextBuff)/2)*fontSize, fontSize+25)
-	text.Draw(screen, g.BigTextBuff, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
+	drawTextWithStroke(
+		screen,
+		g.BigTextBuff,
+		&text.GoTextFace{Source: fontFaceSource, Size: fontSize},
+		color.RGBA{255, 255, 255, 255},
+		color.RGBA{0, 0, 0, 255},
+		2,
+		&textOp,
+	)
 
 	g.Healthbar.Draw(screen)
 }
