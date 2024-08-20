@@ -80,7 +80,6 @@ type Game struct {
 	TransitionWidth float64
 
 	toggleCooldown        int
-	event_handler_running bool
 	isTypingJoinCode      bool
 	ShouldCleanEnemies    bool
 	isInWaitingRoom       bool
@@ -93,8 +92,8 @@ func (g *Game) Update() error {
 		g.Server.Update()
 	}
 
-	if g.event_handler_running == false && g.Client != nil {
-		go g.HandleEvent()
+	if g.Client != nil {
+		g.HandleEvent()
 	}
 
 	if g.Client != nil && g.Client.is_connected && (g.FrameCount%3 == 0) {
@@ -658,46 +657,45 @@ func (g *Game) UpdateTransition() {
 }
 
 func (g *Game) HandleEvent() {
-	g.event_handler_running = true
-	for {
-		select {
-		case event_data := <-g.Client.event_channel:
-			fmt.Println("handling event")
-			switch event_data.Type {
-			case NewLevelEvent:
-				g.ShouldCleanEnemies = true
-				g.ChangeLevel(event_data.Level)
-				g.TransitionState = TransitionStateEnding
-				g.Tombs = []ConnectedPlayer{}
-				g.Boons = []Boon{}
-
-				g.LevelCount++
-				g.isInWaitingRoom = false
-				if event_data.Level == LobbyLevel {
-					g.LevelCount = 0
-					g.isInWaitingRoom = true
-				}
-				g.BigTextBuff = ""
-				l := g.Modifiers.GetModifiedPlayerValue(ModifierTypeLife)
-				g.Player.Life = int(l * PLAYER_LIFE)
-				g.Healthbar.MaxLife = g.Player.Life
-			case SpawnEnemiesEvent:
-				g.Enemies = append(g.Enemies, event_data.Enemies...)
-			case PlayerDiedEvent:
-				g.Tombs = append(g.Tombs, event_data.Player)
-			case SpawnBoonEvent:
-				g.ShouldCleanEnemies = true
-				for i, mod := range event_data.Modifiers {
-					g.Boons = append(g.Boons, Boon{mod, g.Level.BoonSpawns[i], 0})
-				}
-			case PrepareNewLevelEvent:
-				g.StartLevelTransition()
-				// maybe make them do the cool
-			case GameOverEvent:
-				g.BigTextBuff = "GAME OVER"
-			}
-		}
+	if len(g.Client.EventQueue) < 1 {
+		return
 	}
+	fmt.Println("handling event")
+	event_data := g.Client.EventQueue[0]
+	switch event_data.Type {
+	case NewLevelEvent:
+		g.ShouldCleanEnemies = true
+		g.ChangeLevel(event_data.Level)
+		g.TransitionState = TransitionStateEnding
+		g.Tombs = []ConnectedPlayer{}
+		g.Boons = []Boon{}
+
+		g.LevelCount++
+		g.isInWaitingRoom = false
+		if event_data.Level == LobbyLevel {
+			g.LevelCount = 0
+			g.isInWaitingRoom = true
+		}
+		g.BigTextBuff = ""
+		l := g.Modifiers.GetModifiedPlayerValue(ModifierTypeLife)
+		g.Player.Life = int(l * PLAYER_LIFE)
+		g.Healthbar.MaxLife = g.Player.Life
+	case SpawnEnemiesEvent:
+		g.Enemies = append(g.Enemies, event_data.Enemies...)
+	case PlayerDiedEvent:
+		g.Tombs = append(g.Tombs, event_data.Player)
+	case SpawnBoonEvent:
+		g.ShouldCleanEnemies = true
+		for i, mod := range event_data.Modifiers {
+			g.Boons = append(g.Boons, Boon{mod, g.Level.BoonSpawns[i], 0})
+		}
+	case PrepareNewLevelEvent:
+		g.StartLevelTransition()
+		// maybe make them do the cool
+	case GameOverEvent:
+		g.BigTextBuff = "GAME OVER"
+	}
+	g.Client.EventQueue = g.Client.EventQueue[1:]
 }
 
 func (g *Game) Host() {

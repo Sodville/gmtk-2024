@@ -23,7 +23,7 @@ type Client struct {
 	bullets             []Bullet
 	bullets_mutex       sync.RWMutex
 	is_connected        bool
-	event_channel       chan Event
+	EventQueue          []Event
 	readyPlayersCount   uint
 	playerCount         uint
 	ServerState         ServerState
@@ -217,26 +217,26 @@ func (c *Client) HandleServerState(state ServerState) {
 		event.Type = NewLevelEvent
 		event.Level = state.Context.Level
 
-		go func() { c.event_channel <- event }()
+		c.EventQueue = append(c.EventQueue, event)
 	}
 
 	if state.State == ServerStateStarting {
 		event := Event{}
 		event.Type = PrepareNewLevelEvent
-		go func() { c.event_channel <- event }()
+		c.EventQueue = append(c.EventQueue, event)
 	}
 	if state.State == ServerStateLevelCompleted {
 		event := Event{}
 		event.Type = SpawnBoonEvent
 		event.Modifiers = state.Context.ModifiersOptions
-		go func() { c.event_channel <- event }()
+		c.EventQueue = append(c.EventQueue, event)
 	}
 
 	if state.State == ServerStateGameOver {
 		event := Event{}
 		event.Type = GameOverEvent
 
-		go func() { c.event_channel <- event }()
+		c.EventQueue = append(c.EventQueue, event)
 	}
 
 	if state.State == ServerStateWaitingRoom {
@@ -246,7 +246,7 @@ func (c *Client) HandleServerState(state ServerState) {
 
 		*c.PlayerLifePtr = PLAYER_LIFE
 
-		go func() { c.event_channel <- event }()
+		c.EventQueue = append(c.EventQueue, event)
 	}
 }
 
@@ -282,7 +282,6 @@ func (c *Client) RunLocalClient() {
 	}
 
 	c.packet_channel = make(chan PacketData)
-	c.event_channel = make(chan Event)
 
 	go c.listen()
 
@@ -337,12 +336,11 @@ func (c *Client) HandlePacket() {
 			}
 			state := c.GetStateByAddr(hitInfo.Player.Addr.String())
 			if state.Connection.Life-hitInfo.Damage < 1 {
-				go func() {
-					event := Event{}
-					event.Type = PlayerDiedEvent
-					event.Player = state.Connection
-					c.event_channel <- event
-				}()
+				event := Event{}
+				event.Type = PlayerDiedEvent
+				event.Player = state.Connection
+
+				c.EventQueue = append(c.EventQueue, event)
 			}
 
 			if err != nil {
@@ -409,7 +407,7 @@ func (c *Client) HandlePacket() {
 			var event Event
 			_ = dec.Decode(&event)
 
-			go func() { c.event_channel <- event }()
+			c.EventQueue = append(c.EventQueue, event)
 
 		}
 
@@ -465,7 +463,6 @@ func (c *Client) RunClient(server_ip string, key string) {
 	}
 
 	c.packet_channel = make(chan PacketData)
-	c.event_channel = make(chan Event)
 
 	go c.listen()
 
