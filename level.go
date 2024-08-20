@@ -16,6 +16,8 @@ const (
 	LobbyLevel LevelEnum = iota
 	LevelOne
 	LevelTwo
+	LevelThree
+	LevelFour
 	LevelCount
 )
 
