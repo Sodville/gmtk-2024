@@ -56,6 +56,15 @@ func GetCharacterDamage(character CharacterType) int {
 	}
 }
 
+func GetCharacterSpeed(character CharacterType) float64 {
+	switch character {
+	case CharacterZombie:
+		return 1
+	default:
+		return 1
+	}
+}
+
 type Enemy struct {
 	Type         CharacterType
 	Position     Position

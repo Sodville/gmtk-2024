@@ -47,6 +47,7 @@ const (
 	SpawnEnemiesEvent
 	SpawnBoonEvent
 	PrepareNewLevelEvent
+	PlayerDiedEvent
 )
 
 type ServerStateContext struct {
@@ -326,6 +327,9 @@ func (s *Server) StartSpawnMonsterEvent() {
 
 		life := GetLifeForCharacter(CharacterZombie)
 		life *= int(s.Modifiers.GetModifiedMonsterValue(ModifierTypeLife))
+
+		speed := GetCharacterSpeed(CharacterZombie)
+		speed *= s.Modifiers.GetModifiedMonsterValue(ModifierTypeSpeed)
 		enemy := Enemy{
 			CharacterZombie,
 			Position{x, y},
@@ -334,7 +338,7 @@ func (s *Server) StartSpawnMonsterEvent() {
 			life,
 			target.Addr.String(),
 			[]Position{},
-			2,
+			speed,
 		}
 
 		collision := s.level.CheckObjectCollision(enemy.Position)

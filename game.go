@@ -41,6 +41,7 @@ var WHITE color.RGBA = color.RGBA{255, 255, 255, 255}
 var BLACK color.RGBA = color.RGBA{0, 0, 0, 255}
 var HOSTSMITHSPRITE = GetSpriteByID(86)
 var JOINWIZARDSPRITE = GetSpriteByID(84)
+var TOMBSPRITE = GetSpriteByID(64)
 
 type TransitionState int
 
@@ -68,6 +69,7 @@ type Game struct {
 	Enemies    []Enemy
 	Debris     []Bullet
 	Boons      []Boon
+	Tombs      []Position
 	LevelCount int
 	Modifiers  Modifiers
 	JoinKey    string
@@ -386,6 +388,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		enemy.Draw(screen, g.Camera, g)
 	}
 
+	for _, pos := range g.Tombs {
+		op := g.Camera.GetCameraDrawOptions()
+		op.GeoM.Translate(pos.X, pos.Y)
+		screen.DrawImage(TOMBSPRITE, op)
+	}
+
 	if g.Client != nil {
 		g.Client.player_states_mutex.RLock()
 		for _, state := range g.Client.player_states {
@@ -615,10 +623,13 @@ func (g *Game) HandleEvent() {
 			case NewLevelEvent:
 				g.ChangeLevel(event_data.Level)
 				g.TransitionState = TransitionStateEnding
+				g.Tombs = []Position{}
 				g.LevelCount++
 				g.BigTextBuff = ""
 			case SpawnEnemiesEvent:
 				g.Enemies = append(g.Enemies, event_data.Enemies...)
+			case PlayerDiedEvent:
+				g.Tombs = append(g.Tombs, event_data.Player.Position)
 			case SpawnBoonEvent:
 				g.ShouldCleanEnemies = true
 				g.Enemies = []Enemy{}

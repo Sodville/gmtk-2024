@@ -40,6 +40,7 @@ type Event struct {
 	Enemies   []Enemy
 	Level     LevelEnum
 	Modifiers []Modifiers
+	Player    ConnectedPlayer
 }
 
 type ServerStateData struct {

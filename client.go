@@ -318,6 +318,14 @@ func (c *Client) HandlePacket() {
 				// double check this
 				*c.PlayerLifePtr -= hitInfo.Damage
 			}
+			state := c.GetStateByAddr(hitInfo.Player.Addr.String())
+			if state.Connection.Life - hitInfo.Damage < 1 {
+				go func () {
+					event := Event{}
+					event.Type = PlayerDiedEvent
+					event.Player = state.Connection
+					c.event_channel <- event }()
+				}
 
 			if err != nil {
 				fmt.Println("something went wrong when decoding hit info", err)
