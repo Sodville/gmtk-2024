@@ -73,12 +73,13 @@ type Server struct {
 	bullets               []Bullet
 	bullets_mutex         sync.RWMutex
 	level                 *Level
+	levelCount            int
 	State                 ServerState
 	Enemies               []Enemy
 	SpawnCooldown         float64
 	Modifiers             Modifiers
 	RemainingSpawnCycles  int
-	JoinKey				  string
+	JoinKey               string
 }
 
 func (s *Server) GetConnectionByAddr(addr string) *ConnectedPlayer {
@@ -197,7 +198,7 @@ func (s *Server) AllReady() bool {
 }
 
 func (s *Server) getWaveDensity() int {
-	return 1
+	return s.levelCount
 }
 
 func (s *Server) getNextLevel() LevelEnum {
@@ -249,6 +250,7 @@ func (s *Server) UpdateState() {
 			s.State.Context = ServerStateContext{}
 			s.State.Context.Level = s.getNextLevel()
 
+			s.levelCount++
 			s.SpawnCooldown = INITAL_SPAWN_COOLDOWN
 			s.RemainingSpawnCycles = s.getWaveDensity()
 
