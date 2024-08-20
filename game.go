@@ -68,7 +68,7 @@ type Game struct {
 	Enemies     []Enemy
 	Debris      []Bullet
 	Boons       []Boon
-	Tombs       []Position
+	Tombs       []ConnectedPlayer
 	LevelCount  int
 	Modifiers   Modifiers
 	JoinKey     string
@@ -339,7 +339,11 @@ func (g *Game) Update() error {
 		target := g.Client.GetStateByAddr(g.Enemies[key].Target)
 
 		if target != nil {
-			g.Enemies[key].FindPath(target.CurrentPos, g.Level.ObstacleMatrix)
+			if target.Connection.Life > 0 {
+				g.Enemies[key].FindPath(target.CurrentPos, g.Level.ObstacleMatrix)
+			} else {
+				g.Enemies[key].FindPath(target.Connection.DeadPosition, g.Level.ObstacleMatrix)
+			}
 		} else {
 			log.Println("enemy could not find target player")
 		}
@@ -386,8 +390,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		enemy.Draw(screen, g.Camera, g)
 	}
 
-	for _, pos := range g.Tombs {
+	for _, tomp := range g.Tombs {
 		op := g.Camera.GetCameraDrawOptions()
+		pos := tomp.Position
 		op.GeoM.Translate(pos.X, pos.Y)
 		screen.DrawImage(TOMBSPRITE, op)
 	}
@@ -663,7 +668,7 @@ func (g *Game) HandleEvent() {
 				g.ShouldCleanEnemies = true
 				g.ChangeLevel(event_data.Level)
 				g.TransitionState = TransitionStateEnding
-				g.Tombs = []Position{}
+				g.Tombs = []ConnectedPlayer{}
 				g.Boons = []Boon{}
 
 				g.LevelCount++
@@ -679,7 +684,7 @@ func (g *Game) HandleEvent() {
 			case SpawnEnemiesEvent:
 				g.Enemies = append(g.Enemies, event_data.Enemies...)
 			case PlayerDiedEvent:
-				g.Tombs = append(g.Tombs, event_data.Player.Position)
+				g.Tombs = append(g.Tombs, event_data.Player)
 			case SpawnBoonEvent:
 				g.ShouldCleanEnemies = true
 				for i, mod := range event_data.Modifiers {

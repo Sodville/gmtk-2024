@@ -21,6 +21,7 @@ type ConnectedPlayer struct {
 	IsReady        bool
 	TimeLastPacket uint64
 	Life           int
+	DeadPosition   Position
 
 	// currently does not work
 	ID uint
@@ -472,8 +473,14 @@ func (s *Server) Update() {
 	enemies := []Enemy{}
 	for key := range s.Enemies {
 		target := s.GetConnectionByAddr(s.Enemies[key].Target)
+
 		if target != nil {
 			s.Enemies[key].FindPath(target.Position, s.level.ObstacleMatrix)
+			if target.Life > 0 {
+				s.Enemies[key].FindPath(target.Position, s.level.ObstacleMatrix)
+			} else {
+				s.Enemies[key].FindPath(target.DeadPosition, s.level.ObstacleMatrix)
+			}
 		} else {
 			log.Println("enemy could not find target player: ", s.Enemies[key].Target)
 		}
@@ -592,6 +599,7 @@ func (s *Server) Host(mediation_server_ip string, key string) {
 					false,
 					packet_data.Packet.Timestamp,
 					PLAYER_LIFE,
+					Position{},
 					uint(len(s.connection_keys)) + 1,
 				}
 				s.AddConnection(new_connection.String(), new_player)
@@ -638,6 +646,7 @@ func (s *Server) Host(mediation_server_ip string, key string) {
 					false,
 					packet_data.Packet.Timestamp,
 					PLAYER_LIFE,
+					Position{},
 					uint(len(s.connection_keys)) + 1},
 				)
 				s.connection_keys_mutex.Unlock()
@@ -651,6 +660,10 @@ func (s *Server) Host(mediation_server_ip string, key string) {
 				}
 
 				player, ok := loadFromSyncMap[ConnectedPlayer](packet_data.Addr.String(), &s.connections)
+				DeadPosition := player.DeadPosition
+				if player.Life > 0 {
+					DeadPosition = playerUpdate.Position
+				}
 				if ok {
 					player.Position = playerUpdate.Position
 					player.Rotation = playerUpdate.Rotation
@@ -658,6 +671,7 @@ func (s *Server) Host(mediation_server_ip string, key string) {
 					player.IsRolling = playerUpdate.isRolling
 					player.TimeLastPacket = packet_data.Packet.Timestamp
 					player.Life = playerUpdate.Life
+					player.DeadPosition = DeadPosition
 
 					s.connections.Store(packet_data.Addr.String(), player)
 				}

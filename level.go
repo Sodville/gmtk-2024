@@ -187,7 +187,7 @@ func LoadPregameLevel() Level {
 	for _, object_group := range level.Map.ObjectGroups {
 		if object_group.Name == "Misc" {
 			for _, object := range object_group.Objects {
-				switch object.Name{
+				switch object.Name {
 				case "player_spawn":
 					level.Spawn = object
 				case "join_wizard":
