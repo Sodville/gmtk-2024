@@ -71,6 +71,15 @@ func (c *Client) Self() *ConnectedPlayer {
 	return nil
 }
 
+func (c *Client) GetStateByAddr(addr string) *PlayerState {
+	for _, player := range c.player_states {
+		if player.Connection.Addr.String() == addr {
+			return &player
+		}
+	}
+	return nil
+}
+
 func (ps *PlayerState) GetInterpolatedPos() Position {
 	// estimated frame count between packets
 	// f := 1000.0 / SERVER_PLAYER_SYNC_DELAY_MS

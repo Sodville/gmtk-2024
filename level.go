@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"image/png"
-	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/lafriks/go-tiled"

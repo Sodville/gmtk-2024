@@ -223,6 +223,7 @@ func (g *Game) Update() error {
 					bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
 					hitEnemy = true
 					g.Enemies[key].Life = max(0, enemy.Life-int(damage))
+					break
 				}
 			}
 		}
@@ -297,7 +298,14 @@ func (g *Game) Update() error {
 
 	enemies := []Enemy{}
 	for key := range g.Enemies {
-		g.Enemies[key].FindPath(g.Player.Position, g.Level.ObstacleMatrix)
+		target := g.Client.GetStateByAddr(g.Enemies[key].Target)
+
+		if target != nil {
+			g.Enemies[key].FindPath(target.CurrentPos, g.Level.ObstacleMatrix)
+		} else {
+			log.Println("enemy could not find target player")
+		}
+
 		g.Enemies[key].Update()
 		if g.Enemies[key].Life > 0 {
 			enemies = append(enemies, g.Enemies[key])
@@ -504,6 +512,7 @@ func (g *Game) HandleEvent() {
 			case SpawnEnemiesEvent:
 				g.Enemies = append(g.Enemies, event_data.Enemies...)
 			case SpawnBoonEvent:
+				g.Enemies = []Enemy{}
 				for i, mod := range event_data.Modifiers {
 					g.Boons = append(g.Boons, Boon{mod, g.Level.BoonSpawns[i], 0})
 				}

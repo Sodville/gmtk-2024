@@ -79,6 +79,21 @@ type Server struct {
 	RemainingSpawnCycles  int
 }
 
+func (s *Server) GetConnectionByAddr(addr string) *ConnectedPlayer {
+	s.connection_keys_mutex.RLock()
+	for _, conn := range s.connection_keys {
+		player, ok := loadFromSyncMap[ConnectedPlayer](conn, &s.connections)
+		if ok {
+			if player.Addr.String() == addr {
+				s.connection_keys_mutex.RUnlock()
+				return &player
+			}
+		}
+	}
+	s.connection_keys_mutex.RUnlock()
+	return nil
+}
+
 func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {
 	anyValue, ok := syncMap.Load(key)
 	if ok {
@@ -93,6 +108,22 @@ func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {
 		log.Println("server tried to load non-present key from syncMap")
 		return value, false
 	}
+}
+
+func (s *Server) GetAlivePlayers() []ConnectedPlayer {
+	connections := make([]ConnectedPlayer, 0)
+	s.connection_keys_mutex.RLock()
+	for _, conn := range s.connection_keys {
+		player, ok := loadFromSyncMap[ConnectedPlayer](conn, &s.connections)
+		if ok {
+			if player.Life > 0 {
+				connections = append(connections, player)
+			}
+		}
+	}
+	s.connection_keys_mutex.RUnlock()
+
+	return connections
 }
 
 func (s *Server) CheckTimedOutPlayers() {
@@ -237,7 +268,6 @@ func (s *Server) UpdateState() {
 			LoadLevel(s.level, s.State.Context.Level)
 		}
 	} else if s.State.State == ServerStatePlaying {
-		log.Println(s.RemainingSpawnCycles, len(s.Enemies))
 		if s.SpawnCooldown == 0 && s.RemainingSpawnCycles > 0 {
 			s.RemainingSpawnCycles--
 			s.StartSpawnMonsterEvent()
@@ -282,15 +312,12 @@ func (s *Server) StartSpawnMonsterEvent() {
 	EnemiesToSpawn := []Enemy{}
 	spawnCount := rand.Intn(MAX_SPAWN_COUNT)
 	spawnCount += int(s.Modifiers.getTotalModifiedValue())
-	log.Println(spawnCount)
 	for i := 0; i < spawnCount; i++ {
 		X := rand.Intn(radius*2) - radius
 		Y := rand.Intn(radius*2) - radius
 
-		s.connection_keys_mutex.RLock()
-		targetKey := s.connection_keys[rand.Intn(len(s.connection_keys))]
-		target, _ := loadFromSyncMap[ConnectedPlayer](targetKey, &s.connections)
-		s.connection_keys_mutex.RUnlock()
+		aliveConnections := s.GetAlivePlayers()
+		target := aliveConnections[rand.Intn(len(aliveConnections))]
 
 		// clamping inside arena
 		x := float64(max(0, min(s.level.Map.Width*TILE_SIZE-TILE_SIZE, X+desiredX)))
@@ -355,9 +382,8 @@ func (s *Server) Update() {
 					bullet.Position.Y < enemy.Position.Y+TILE_SIZE &&
 					bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
 					should_remove = true
-					log.Println("hit enemy", enemy.Life)
 					s.Enemies[key].Life = max(0, enemy.Life-int(damage))
-
+					break
 				}
 			}
 		} else if bullet.GracePeriod == 0 {
@@ -405,11 +431,16 @@ func (s *Server) Update() {
 
 	enemies := []Enemy{}
 	for key := range s.Enemies {
-		enemy := s.Enemies[key]
+		target := s.GetConnectionByAddr(s.Enemies[key].Target)
+		if target != nil {
+			s.Enemies[key].FindPath(target.Position, s.level.ObstacleMatrix)
+		} else {
+			log.Println("enemy could not find target player: ", s.Enemies[key].Target)
+		}
 
-		enemy.Update()
+		s.Enemies[key].Update()
 
-		if enemy.Life > 0 {
+		if s.Enemies[key].Life > 0 {
 			enemies = append(enemies, s.Enemies[key])
 		}
 	}
