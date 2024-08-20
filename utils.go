@@ -2,18 +2,16 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
 
 type Position struct {
 	X, Y float64
-}
-
-type Delta struct {
-	dX, dY float64
 }
 
 func AbsoluteCursorPosition(camera Camera) (int, int) {
@@ -46,4 +44,22 @@ func (p *Position) Distance(other Position) float64 {
 	yDelta := p.Y - other.Y
 
 	return math.Sqrt(xDelta*xDelta + yDelta*yDelta)
+}
+
+func drawTextWithStroke(dst *ebiten.Image, str string, face text.Face, textColor, strokeColor color.Color, strokeWidth int, textOp *text.DrawOptions) {
+	for dy := -strokeWidth; dy <= strokeWidth; dy++ {
+		for dx := -strokeWidth; dx <= strokeWidth; dx++ {
+			if dx*dx+dy*dy >= strokeWidth*strokeWidth {
+				continue
+			}
+			textOp.GeoM.Translate(float64(dx), float64(dy))
+			textOp.ColorScale.Reset()
+			textOp.ColorScale.ScaleWithColor(strokeColor)
+			text.Draw(dst, str, face, textOp)
+			textOp.GeoM.Translate(-float64(dx), -float64(dy))
+		}
+	}
+	textOp.ColorScale.Reset()
+	textOp.ColorScale.ScaleWithColor(textColor)
+	text.Draw(dst, str, face, textOp)
 }

@@ -143,20 +143,44 @@ func (b *Boon) Draw(screen *ebiten.Image, camera *Camera) {
 		textOp.ColorScale.ScaleWithColor(color.RGBA{20, 140, 20, 255})
 
 		textOp.GeoM.Translate(-float64(len(playerString)/2)*fontSize, -fontSize*4)
-		text.Draw(screen, playerString, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
+		drawTextWithStroke(
+			screen,
+			playerString,
+			&text.GoTextFace{Source: fontFaceSource, Size: fontSize},
+			color.RGBA{20, 140, 20, 255},
+			color.RGBA{0, 0, 0, 255},
+			2,
+			&textOp,
+		)
 
 		textOp = text.DrawOptions{}
 		textOp.GeoM = op.GeoM
 		textOp.ColorScale.ScaleWithColor(color.RGBA{200, 20, 20, 255})
 
 		textOp.GeoM.Translate(-float64(len(monsterString)/2)*fontSize, -fontSize*2)
-		text.Draw(screen, monsterString, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
+		drawTextWithStroke(
+			screen,
+			monsterString,
+			&text.GoTextFace{Source: fontFaceSource, Size: fontSize},
+			color.RGBA{200, 20, 20, 255},
+			color.RGBA{0, 0, 0, 255},
+			2,
+			&textOp,
+		)
 
 		textOp = text.DrawOptions{}
 		textOp.GeoM = op.GeoM
 		info := "press 'e' to choose"
 
 		textOp.GeoM.Translate(-float64(len(info)/2)*fontSize, -fontSize)
-		text.Draw(screen, info, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
+		drawTextWithStroke(
+			screen,
+			info,
+			&text.GoTextFace{Source: fontFaceSource, Size: fontSize},
+			color.RGBA{255, 255, 255, 255},
+			color.RGBA{0, 0, 0, 255},
+			2,
+			&textOp,
+		)
 	}
 }
