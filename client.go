@@ -231,6 +231,23 @@ func (c *Client) HandleServerState(state ServerState) {
 		event.Modifiers = state.Context.ModifiersOptions
 		go func() { c.event_channel <- event }()
 	}
+
+	if state.State == ServerStateGameOver  {
+		event := Event{}
+		event.Type = GameOverEvent
+
+		go func() { c.event_channel <- event }()
+	}
+
+	if state.State == ServerStateWaitingRoom {
+		event := Event{}
+		event.Type = NewLevelEvent
+		event.Level = state.Context.Level
+
+		*c.PlayerLifePtr = PLAYER_LIFE
+
+		go func() { c.event_channel <- event }()
+	}
 }
 
 func (c *Client) RunLocalClient() {

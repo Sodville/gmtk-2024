@@ -621,9 +621,12 @@ func (g *Game) HandleEvent() {
 			fmt.Println("handling event")
 			switch event_data.Type {
 			case NewLevelEvent:
+				g.ShouldCleanEnemies = true
 				g.ChangeLevel(event_data.Level)
 				g.TransitionState = TransitionStateEnding
 				g.Tombs = []Position{}
+				g.Boons = []Boon{}
+
 				g.LevelCount++
 				g.BigTextBuff = ""
 			case SpawnEnemiesEvent:
@@ -632,14 +635,15 @@ func (g *Game) HandleEvent() {
 				g.Tombs = append(g.Tombs, event_data.Player.Position)
 			case SpawnBoonEvent:
 				g.ShouldCleanEnemies = true
-				g.Enemies = []Enemy{}
 				for i, mod := range event_data.Modifiers {
 					g.Boons = append(g.Boons, Boon{mod, g.Level.BoonSpawns[i], 0})
 				}
 			case PrepareNewLevelEvent:
-				g.Boons = []Boon{}
 				g.StartLevelTransition()
 				// maybe make them do the cool
+			case GameOverEvent:
+				g.LevelCount = -1
+				g.BigTextBuff = "GAME OVER"
 			}
 		}
 	}

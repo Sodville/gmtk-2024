@@ -38,6 +38,7 @@ const (
 	ServerStateShopping
 	ServerStatePlaying
 	ServerStateLevelCompleted
+	ServerStateGameOver
 )
 
 type EventType uint
@@ -48,6 +49,7 @@ const (
 	SpawnBoonEvent
 	PrepareNewLevelEvent
 	PlayerDiedEvent
+	GameOverEvent
 )
 
 type ServerStateContext struct {
@@ -272,7 +274,10 @@ func (s *Server) UpdateState() {
 			LoadLevel(s.level, s.State.Context.Level)
 		}
 	} else if s.State.State == ServerStatePlaying {
-		if s.SpawnCooldown == 0 && s.RemainingSpawnCycles > 0 {
+		if len(s.GetAlivePlayers()) == 0 {
+			s.State.State = ServerStateGameOver
+			s.State.Context.Time = time.Now().Add(time.Second * 4)
+		} else if s.SpawnCooldown == 0 && s.RemainingSpawnCycles > 0 {
 			s.RemainingSpawnCycles--
 			s.StartSpawnMonsterEvent()
 		} else if s.RemainingSpawnCycles <= 0 && len(s.Enemies) == 0 {
@@ -286,6 +291,30 @@ func (s *Server) UpdateState() {
 		if s.State.Context.HasChosenOptions {
 			s.State.State = ServerStateStarting
 			s.State.Context.Time = time.Now().Add(time.Second * 2)
+		}
+	} else if s.State.State == ServerStateGameOver {
+		if s.State.Context.Time.Sub(time.Now()) <= 0 {
+			s.State.State = ServerStateWaitingRoom
+			s.State.Context = ServerStateContext{}
+			s.State.Context.Level = LobbyLevel
+
+			LoadLevel(s.level, LobbyLevel)
+			s.connection_keys_mutex.Lock()
+			for _, conn := range s.connection_keys {
+				player, ok := loadFromSyncMap[ConnectedPlayer](conn, &s.connections)
+				if ok {
+					player.IsReady = false
+				}
+				s.connections.Store(conn, player)
+			}
+			s.connection_keys_mutex.Unlock()
+			s.Enemies = []Enemy{}
+			s.Modifiers = Modifiers{}
+
+			packet := Packet{}
+			packet.PacketType = PacketTypeModifiersUpdated
+
+			s.Broadcast(packet, s.Modifiers)
 		}
 	}
 }
@@ -359,7 +388,7 @@ func (s *Server) StartSpawnMonsterEvent() {
 	s.Broadcast(packet, event)
 
 	for i := range EnemiesToSpawn {
-		s.Enemies[i].Life = int(float64(s.Enemies[i].Life) * .8)
+		EnemiesToSpawn[i].Life = int(float64(EnemiesToSpawn[i].Life) * .8)
 	}
 
 	s.Enemies = append(s.Enemies, EnemiesToSpawn...)
