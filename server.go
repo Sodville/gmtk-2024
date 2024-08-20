@@ -77,6 +77,7 @@ type Server struct {
 	SpawnCooldown         float64
 	Modifiers             Modifiers
 	RemainingSpawnCycles  int
+	JoinKey				  string
 }
 
 func (s *Server) GetConnectionByAddr(addr string) *ConnectedPlayer {
@@ -254,7 +255,7 @@ func (s *Server) UpdateState() {
 				packet := Packet{}
 				packet.PacketType = PacketTypeMatchStart
 
-				data := ReconcilliationData{"Hello, server!"}
+				data := ReconcilliationData{s.JoinKey}
 				raw_data, _ := SerializePacket(packet, data)
 				_, err := s.conn.WriteToUDP(raw_data, &s.mediation_server)
 
@@ -469,6 +470,7 @@ func (s *Server) Host(mediation_server_ip string, key string) {
 	}
 	defer conn.Close()
 
+	s.JoinKey = key
 	data := ReconcilliationData{key}
 
 	packet := Packet{}

@@ -80,6 +80,7 @@ type Game struct {
 	toggleCooldown        int
 	event_handler_running bool
 	isTypingJoinCode      bool
+	ShouldCleanEnemies    bool
 }
 
 func (g *Game) Update() error {
@@ -101,6 +102,11 @@ func (g *Game) Update() error {
 			g.Player.RollDuration > 0,
 			g.Player.Life,
 		) // TODO
+	}
+
+	if g.ShouldCleanEnemies {
+		g.Enemies = []Enemy{}
+		g.ShouldCleanEnemies = false
 	}
 
 	targetX := g.Player.Position.X - SCREEN_WIDTH/2
@@ -614,6 +620,7 @@ func (g *Game) HandleEvent() {
 			case SpawnEnemiesEvent:
 				g.Enemies = append(g.Enemies, event_data.Enemies...)
 			case SpawnBoonEvent:
+				g.ShouldCleanEnemies = true
 				g.Enemies = []Enemy{}
 				for i, mod := range event_data.Modifiers {
 					g.Boons = append(g.Boons, Boon{mod, g.Level.BoonSpawns[i], 0})
