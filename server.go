@@ -460,7 +460,7 @@ func (s *Server) AddConnection(key string, new_connection ConnectedPlayer) {
 	s.connections.Store(key, new_connection)
 }
 
-func (s *Server) Host(mediation_server_ip string) {
+func (s *Server) Host(mediation_server_ip string, key string) {
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("0.0.0.0"), Port: SERVERPORT})
 	s.conn = conn
 	if err != nil {
@@ -469,7 +469,7 @@ func (s *Server) Host(mediation_server_ip string) {
 	}
 	defer conn.Close()
 
-	data := ReconcilliationData{"Hello, server!"}
+	data := ReconcilliationData{key}
 
 	packet := Packet{}
 	packet.PacketType = PacketTypeMatchHost

@@ -83,7 +83,7 @@ func (p *Player) Update(game *Game) {
 		p.RollDuration = min(0, p.RollDuration+p.RollSpeed*0.085)
 	} else {
 		speed = p.Speed
-		speed *= game.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeSpeed)
+		speed *= game.Modifiers.GetModifiedPlayerValue(ModifierTypeSpeed)
 		// TODO: should be server decided probs
 		p.Invulnerable = false
 	}
@@ -119,9 +119,6 @@ func (p *Player) Update(game *Game) {
 			player_pos.X = collided_object.X - TILE_SIZE
 		}
 	}
-
-	p.Life -= game.Client.PendingDamageTaken
-	game.Client.PendingDamageTaken = 0
 
 	// "Cooldown" animation when player stops moving
 	if p.Position == initial_pos {

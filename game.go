@@ -12,6 +12,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
@@ -38,6 +39,8 @@ const (
 
 var WHITE color.RGBA = color.RGBA{255, 255, 255, 255}
 var BLACK color.RGBA = color.RGBA{0, 0, 0, 255}
+var HOSTSMITHSPRITE = GetSpriteByID(86)
+var JOINWIZARDSPRITE = GetSpriteByID(84)
 
 type TransitionState int
 
@@ -66,6 +69,9 @@ type Game struct {
 	Debris     []Bullet
 	Boons      []Boon
 	LevelCount int
+	Modifiers  Modifiers
+	JoinKey    string
+	BigTextBuff string
 
 	Transitions     []Transition
 	TransitionState TransitionState
@@ -73,6 +79,7 @@ type Game struct {
 
 	toggleCooldown        int
 	event_handler_running bool
+	isTypingJoinCode      bool
 }
 
 func (g *Game) Update() error {
@@ -82,11 +89,11 @@ func (g *Game) Update() error {
 		g.Server.Update()
 	}
 
-	if g.event_handler_running == false {
+	if g.event_handler_running == false && g.Client != nil{
 		go g.HandleEvent()
 	}
 
-	if g.Client.is_connected && (g.FrameCount%3 == 0) {
+	if g.Client != nil && g.Client.is_connected && (g.FrameCount%3 == 0) {
 		g.Client.SendPosition(
 			g.Player.Position,
 			g.Player.Rotation,
@@ -95,8 +102,6 @@ func (g *Game) Update() error {
 			g.Player.Life,
 		) // TODO
 	}
-
-	g.Player.Update(g)
 
 	targetX := g.Player.Position.X - SCREEN_WIDTH/2
 	targetX = max(0, targetX)
@@ -108,34 +113,57 @@ func (g *Game) Update() error {
 
 	camera_target_pos := Position{targetX, targetY}
 	g.Camera.Update(camera_target_pos)
-	if ebiten.IsKeyPressed(ebiten.KeyQ) {
-		return ebiten.Termination
-	}
-
-	if ebiten.IsKeyPressed(ebiten.Key1) {
-		g.Player.Weapon = WeaponBow
-	}
-
-	if ebiten.IsKeyPressed(ebiten.Key2) {
-		g.Player.Weapon = WeaponRevolver
-	}
-
-	if ebiten.IsKeyPressed(ebiten.Key3) {
-		g.Player.Weapon = WeaponGun
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyR) && g.toggleCooldown == 0 {
-		g.Client.ToggleReady()
-		g.toggleCooldown = TOGGLECOOLDOWN
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyE) && g.toggleCooldown == 0 {
-		g.toggleCooldown = TOGGLECOOLDOWN
-		for _, boon := range g.Boons {
-			if g.Player.Position.Distance(boon.Position) < BOON_INTERACT_RANGE {
-				g.Client.SendChosenModifiers(boon.Modifiers)
+	if g.isTypingJoinCode {
+		g.BigTextBuff = "join key: " + g.JoinKey
+		keys := make([]ebiten.Key, 0)
+		keys = inpututil.AppendJustPressedKeys(keys)
+		for _, k := range keys {
+			if len(k.String()) == 1 {
+				g.JoinKey += k.String()
+			} else if k == ebiten.KeyBackspace && len(g.JoinKey) > 0 {
+				g.JoinKey = g.JoinKey[:len(g.JoinKey)-1]
+			} else if k == ebiten.KeyEnter {
+				g.isTypingJoinCode = false
+				g.Join()
+			} else if k == ebiten.KeyEscape {
+				g.BigTextBuff = ""
+				g.isTypingJoinCode = false
 			}
 		}
+	} else {
+		if ebiten.IsKeyPressed(ebiten.KeyQ) {
+			return ebiten.Termination
+		}
+
+		if ebiten.IsKeyPressed(ebiten.Key1) {
+			g.Player.Weapon = WeaponBow
+		}
+
+		if ebiten.IsKeyPressed(ebiten.Key2) {
+			g.Player.Weapon = WeaponRevolver
+		}
+
+		if ebiten.IsKeyPressed(ebiten.Key3) {
+			g.Player.Weapon = WeaponGun
+		}
+
+		if ebiten.IsKeyPressed(ebiten.KeyR) && g.toggleCooldown == 0 && g.Client != nil {
+			g.Client.ToggleReady()
+			g.toggleCooldown = TOGGLECOOLDOWN
+		}
+
+		g.Player.Update(g)
+
+
+		if ebiten.IsKeyPressed(ebiten.KeyE) && g.toggleCooldown == 0 && g.Client != nil {
+			g.toggleCooldown = TOGGLECOOLDOWN
+			for _, boon := range g.Boons {
+				if g.Player.Position.Distance(boon.Position) < BOON_INTERACT_RANGE {
+					g.Client.SendChosenModifiers(boon.Modifiers)
+				}
+			}
+		}
+
 	}
 
 	for i := range g.Boons {
@@ -155,136 +183,140 @@ func (g *Game) Update() error {
 	rotation := CalculateOrientationRads(g.Camera, g.Player.GetCenter())
 	g.Player.Rotation = rotation
 
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) && g.Player.ShootCooldown == 0 && g.Player.RollDuration == 0 && !g.Player.IsGhost() {
-		current_pos := g.Player.Position
-		speed := GetWeaponSpeed(g.Player.Weapon)
-		speedMulti := g.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeBulletSpeed)
 
-		speed *= float32(speedMulti)
-		g.Client.SendShoot(Bullet{
-			current_pos,
-			rotation,
-			g.Player.Weapon,
-			speed,
-			0,
-			GetWeaponFriendlyFire(g.Player.Weapon)},
-		)
+	if g.Client != nil {
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) && g.Player.ShootCooldown == 0 && g.Player.RollDuration == 0 && !g.Player.IsGhost() && g.Client != nil {
+			current_pos := g.Player.Position
+			speed := GetWeaponSpeed(g.Player.Weapon)
+			speedMulti := g.Modifiers.GetModifiedPlayerValue(ModifierTypeBulletSpeed)
 
-		if WeaponHasSpark(g.Player.Weapon) {
-			scale := g.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeDamage)
-			current_pos.X += TILE_SIZE/2 + math.Cos(g.Player.Rotation)*TILE_SIZE
-			current_pos.Y += TILE_SIZE/2 + math.Sin(g.Player.Rotation)*TILE_SIZE
-			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation - .5, scale, speedMulti, WHITE})
-			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation, scale, speedMulti, WHITE})
-			g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation + .5, scale, speedMulti, WHITE})
+			speed *= float32(speedMulti)
+			g.Client.SendShoot(Bullet{
+				current_pos,
+				rotation,
+				g.Player.Weapon,
+				speed,
+				0,
+				GetWeaponFriendlyFire(g.Player.Weapon)},
+			)
+
+			if WeaponHasSpark(g.Player.Weapon) {
+				scale := g.Modifiers.GetModifiedPlayerValue(ModifierTypeDamage)
+				current_pos.X += TILE_SIZE/2 + math.Cos(g.Player.Rotation)*TILE_SIZE
+				current_pos.Y += TILE_SIZE/2 + math.Sin(g.Player.Rotation)*TILE_SIZE
+				g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation - .5, scale, speedMulti, WHITE})
+				g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation, scale, speedMulti, WHITE})
+				g.Sparks = append(g.Sparks, Spark{4, current_pos, g.Player.Rotation + .5, scale, speedMulti, WHITE})
+			}
+
+			weaponCooldown := GetWeaponCooldown(g.Player.Weapon)
+			weaponCooldown /= g.Modifiers.GetModifiedPlayerValue(ModifierTypeWeaponCooldown)
+			g.Player.ShootCooldown = weaponCooldown
 		}
 
-		weaponCooldown := GetWeaponCooldown(g.Player.Weapon)
-		weaponCooldown /= g.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeWeaponCooldown)
-		g.Player.ShootCooldown = weaponCooldown
-	}
+		g.Player.ShootCooldown = max(0, g.Player.ShootCooldown-.16)
 
-	g.Player.ShootCooldown = max(0, g.Player.ShootCooldown-.16)
+		if ebiten.IsKeyPressed(ebiten.KeySpace) && g.Player.RollCooldown == 0 && g.Client != nil {
+			g.Client.SendRoll()
+			g.Player.RollCooldown = 100
+		}
 
-	if ebiten.IsKeyPressed(ebiten.KeySpace) && g.Player.RollCooldown == 0 {
-		g.Client.SendRoll()
-		g.Player.RollCooldown = 100
-	}
+		g.Player.RollCooldown = max(0, g.Player.RollCooldown-1)
 
-	g.Player.RollCooldown = max(0, g.Player.RollCooldown-1)
+		g.Client.bullets_mutex.Lock()
+		for i, bullet := range g.Client.bullets {
+			x := math.Cos(bullet.Rotation)
+			y := math.Sin(bullet.Rotation)
 
-	g.Client.bullets_mutex.Lock()
-	for i, bullet := range g.Client.bullets {
-		x := math.Cos(bullet.Rotation)
-		y := math.Sin(bullet.Rotation)
+			g.Client.bullets[i].Position.X += x * float64(bullet.Speed)
+			g.Client.bullets[i].Position.Y += y * float64(bullet.Speed)
+		}
 
-		g.Client.bullets[i].Position.X += x * float64(bullet.Speed)
-		g.Client.bullets[i].Position.Y += y * float64(bullet.Speed)
-	}
+		bullets := []Bullet{}
+		for i, bullet := range g.Client.bullets {
+			radians := bullet.Rotation
+			x := math.Cos(radians)
+			y := math.Sin(radians)
 
-	bullets := []Bullet{}
-	for i, bullet := range g.Client.bullets {
-		radians := bullet.Rotation
-		x := math.Cos(radians)
-		y := math.Sin(radians)
+			bullet.Position.X += x * float64(bullet.Speed)
+			bullet.Position.Y += y * float64(bullet.Speed)
 
-		bullet.Position.X += x * float64(bullet.Speed)
-		bullet.Position.Y += y * float64(bullet.Speed)
+			damage := GetWeaponDamage(bullet.WeaponType)
+			damage *= g.Modifiers.GetModifiedPlayerValue(ModifierTypeDamage)
+			hitEnemy := false
 
-		damage := GetWeaponDamage(bullet.WeaponType)
-		damage *= g.Client.Modifiers.GetModifiedPlayerValue(ModifierTypeDamage)
-		hitEnemy := false
-
-		if !bullet.HurtsPlayer {
-			for key, enemy := range g.Enemies {
-				if bullet.Position.X < enemy.Position.X+TILE_SIZE &&
-					bullet.Position.X+4 > enemy.Position.X && // 4 is width
-					bullet.Position.Y < enemy.Position.Y+TILE_SIZE &&
-					bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
-					hitEnemy = true
-					g.Enemies[key].Life = max(0, enemy.Life-int(damage))
-					break
+			if !bullet.HurtsPlayer {
+				for key, enemy := range g.Enemies {
+					if bullet.Position.X < enemy.Position.X+TILE_SIZE &&
+						bullet.Position.X+4 > enemy.Position.X && // 4 is width
+						bullet.Position.Y < enemy.Position.Y+TILE_SIZE &&
+						bullet.Position.Y+4 > enemy.Position.Y { // 4 is height
+						hitEnemy = true
+						g.Enemies[key].Life = max(0, enemy.Life-int(damage))
+						break
+					}
 				}
 			}
-		}
 
-		collision_object := g.Level.CheckObjectCollision(g.Client.bullets[i].Position)
-		if collision_object != nil || hitEnemy {
+			collision_object := g.Level.CheckObjectCollision(g.Client.bullets[i].Position)
+			if collision_object != nil || hitEnemy {
 
-			sparkPos := bullet.Position
-			sparkPos.X += 4
-			sparkPos.Y += 4
+				sparkPos := bullet.Position
+				sparkPos.X += 4
+				sparkPos.Y += 4
 
-			if collision_object != nil {
-				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation - .5, 1, 1, color.RGBA{255, 255, 255, 255}})
-				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation, 1, 1, color.RGBA{192, 182, 200, 255}})
-				g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation + .5, 1, 1, color.RGBA{255, 255, 255, 255}})
-			} else if hitEnemy {
-				redColor := color.RGBA{255, 28, 28, 255}
-				g.Sparks = append(g.Sparks, Spark{4, sparkPos, bullet.Rotation - .5, 2, 2, redColor})
-				g.Sparks = append(g.Sparks, Spark{4, sparkPos, bullet.Rotation, 2, 2, color.RGBA{192, 182, 200, 255}})
-				g.Sparks = append(g.Sparks, Spark{4, sparkPos, bullet.Rotation + .5, 2, 2, redColor})
+				if collision_object != nil {
+					g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation - .5, 1, 1, color.RGBA{255, 255, 255, 255}})
+					g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation, 1, 1, color.RGBA{192, 182, 200, 255}})
+					g.Sparks = append(g.Sparks, Spark{4, sparkPos, -bullet.Rotation + .5, 1, 1, color.RGBA{255, 255, 255, 255}})
+				} else if hitEnemy {
+					redColor := color.RGBA{255, 28, 28, 255}
+					g.Sparks = append(g.Sparks, Spark{4, sparkPos, bullet.Rotation - .5, 2, 2, redColor})
+					g.Sparks = append(g.Sparks, Spark{4, sparkPos, bullet.Rotation, 2, 2, color.RGBA{192, 182, 200, 255}})
+					g.Sparks = append(g.Sparks, Spark{4, sparkPos, bullet.Rotation + .5, 2, 2, redColor})
 
-				for i := -.1; i < .1; i += .5 {
-					redColor := color.RGBA{178, 28, 28, 255}
-					g.Sparks = append(g.Sparks, Spark{5, sparkPos, bullet.Rotation + i*2.5, 1.2, 3, redColor})
+					for i := -.1; i < .1; i += .5 {
+						redColor := color.RGBA{178, 28, 28, 255}
+						g.Sparks = append(g.Sparks, Spark{5, sparkPos, bullet.Rotation + i*2.5, 1.2, 3, redColor})
+					}
+
 				}
+				if bullet.WeaponType == WeaponBow && !hitEnemy {
+					g.Debris = append(g.Debris, bullet)
+				}
+			} else {
+				bullets = append(bullets, bullet)
+			}
 
-			}
-			if bullet.WeaponType == WeaponBow && !hitEnemy {
-				g.Debris = append(g.Debris, bullet)
-			}
-		} else {
-			bullets = append(bullets, bullet)
 		}
+		g.Client.bullets = bullets
+		g.Client.bullets_mutex.Unlock()
 
-	}
-	g.Client.bullets = bullets
-	g.Client.bullets_mutex.Unlock()
+		states := make(map[string]PlayerState)
+		g.Client.player_states_mutex.Lock()
+		for key, state := range g.Client.player_states {
+			if g.Client.IsSelf(state.Connection.Addr) {
+				states[key] = state
+				continue
+			}
 
-	states := make(map[string]PlayerState)
-	g.Client.player_states_mutex.Lock()
-	for key, state := range g.Client.player_states {
-		if g.Client.IsSelf(state.Connection.Addr) {
+			currentRelativePosition := state.GetInterpolatedPos()
+			if state.CurrentPos.X != currentRelativePosition.X || state.CurrentPos.Y != currentRelativePosition.Y {
+				state.MoveDuration += 1
+			} else {
+				state.MoveDuration = state.MoveDuration % 30
+				state.MoveDuration = max(0, state.MoveDuration-1)
+			}
+
+			state.FrameCount++
 			states[key] = state
-			continue
 		}
 
-		currentRelativePosition := state.GetInterpolatedPos()
-		if state.CurrentPos.X != currentRelativePosition.X || state.CurrentPos.Y != currentRelativePosition.Y {
-			state.MoveDuration += 1
-		} else {
-			state.MoveDuration = state.MoveDuration % 30
-			state.MoveDuration = max(0, state.MoveDuration-1)
-		}
+		g.Client.player_states = states
+		g.Client.player_states_mutex.Unlock()
 
-		state.FrameCount++
-		states[key] = state
+
 	}
-
-	g.Client.player_states = states
-	g.Client.player_states_mutex.Unlock()
-
 	sparks := []Spark{}
 	for key := range g.Sparks {
 		spark := g.Sparks[key]
@@ -313,6 +345,25 @@ func (g *Game) Update() error {
 	}
 	g.Enemies = enemies
 
+	if g.Level.HostSmith != nil {
+		pos := Position{g.Level.HostSmith.X, g.Level.HostSmith.Y }
+		distance := pos.Distance(g.Player.Position)
+
+		if distance < BOON_INTERACT_RANGE && ebiten.IsKeyPressed(ebiten.KeyE) && g.Server == nil && g.toggleCooldown == 0 {
+			g.toggleCooldown = TOGGLECOOLDOWN
+			g.Host()
+		}
+	}
+
+	if g.Level.JoinWizard != nil {
+		pos := Position{g.Level.JoinWizard.X, g.Level.JoinWizard.Y }
+		distance := pos.Distance(g.Player.Position)
+
+		if distance < BOON_INTERACT_RANGE && ebiten.IsKeyPressed(ebiten.KeyE) && g.Server == nil && g.toggleCooldown == 0 {
+			g.toggleCooldown = TOGGLECOOLDOWN
+			g.isTypingJoinCode = true
+		}
+	}
 	g.UpdateTransition()
 
 	return nil
@@ -329,93 +380,95 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		enemy.Draw(screen, g.Camera, g)
 	}
 
-	g.Client.player_states_mutex.RLock()
-	for _, state := range g.Client.player_states {
-		if g.Client.IsSelf(state.Connection.Addr) {
-			continue
-		}
-
-		op := ebiten.DrawImageOptions{}
-		if state.MoveDuration > 0 {
-			op.GeoM.Translate(-8, -8)
-			op.GeoM.Rotate(math.Sin(float64(state.MoveDuration/5)) * 0.2)
-			op.GeoM.Translate(8, 8)
-		}
-
-		RenderPos := state.GetInterpolatedPos()
-		op.GeoM.Translate(RenderPos.X, RenderPos.Y)
-		op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
-
-		if state.Connection.Life > 0 {
-			screen.DrawImage(g.Player.Sprite, &op)
-			distance := 8.
-
-			op = ebiten.DrawImageOptions{}
-			op.GeoM.Translate(-distance, -distance)
-
-			if math.Pi*.5 < state.Connection.Rotation || state.Connection.Rotation < -math.Pi*.5 {
-				op.GeoM.Scale(1, -1)
+	if g.Client != nil {
+		g.Client.player_states_mutex.RLock()
+		for _, state := range g.Client.player_states {
+			if g.Client.IsSelf(state.Connection.Addr) {
+				continue
 			}
-			op.GeoM.Rotate(state.Connection.Rotation)
 
-			op.GeoM.Translate(distance, distance)
+			op := ebiten.DrawImageOptions{}
+			if state.MoveDuration > 0 {
+				op.GeoM.Translate(-8, -8)
+				op.GeoM.Rotate(math.Sin(float64(state.MoveDuration/5)) * 0.2)
+				op.GeoM.Translate(8, 8)
+			}
 
-			x := math.Cos(state.Connection.Rotation)
-			y := math.Sin(state.Connection.Rotation)
-
-			op.GeoM.Translate(x*distance, y*distance)
-
+			RenderPos := state.GetInterpolatedPos()
 			op.GeoM.Translate(RenderPos.X, RenderPos.Y)
 			op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
 
-			screen.DrawImage(GetWeaponSprite(state.Connection.Weapon), &op)
+			if state.Connection.Life > 0 {
+				screen.DrawImage(g.Player.Sprite, &op)
+				distance := 8.
 
-		} else {
-			op.ColorScale.SetA(185)
-			screen.DrawImage(GhostSprite, &op)
+				op = ebiten.DrawImageOptions{}
+				op.GeoM.Translate(-distance, -distance)
+
+				if math.Pi*.5 < state.Connection.Rotation || state.Connection.Rotation < -math.Pi*.5 {
+					op.GeoM.Scale(1, -1)
+				}
+				op.GeoM.Rotate(state.Connection.Rotation)
+
+				op.GeoM.Translate(distance, distance)
+
+				x := math.Cos(state.Connection.Rotation)
+				y := math.Sin(state.Connection.Rotation)
+
+				op.GeoM.Translate(x*distance, y*distance)
+
+				op.GeoM.Translate(RenderPos.X, RenderPos.Y)
+				op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
+
+				screen.DrawImage(GetWeaponSprite(state.Connection.Weapon), &op)
+
+			} else {
+				op.ColorScale.SetA(185)
+				screen.DrawImage(GhostSprite, &op)
+			}
+
+		}
+		g.Client.player_states_mutex.RUnlock()
+
+		g.Client.bullets_mutex.RLock()
+		for _, bullet := range g.Client.bullets {
+			sprite := GetBulletSprite(bullet.WeaponType)
+
+			width := sprite.Bounds().Dx()
+			height := sprite.Bounds().Dy()
+
+			op := ebiten.DrawImageOptions{}
+
+			op.GeoM.Translate(-float64(width)/2, -float64(height)/2)
+			op.GeoM.Rotate(bullet.Rotation + math.Pi*.5)
+			op.GeoM.Translate(float64(width)/2, float64(height)/2)
+
+			op.GeoM.Translate(bullet.Position.X, bullet.Position.Y)
+			op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
+
+			screen.DrawImage(sprite, &op)
 		}
 
+		for _, bullet := range g.Debris {
+			sprite := GetBulletSprite(bullet.WeaponType)
+
+			width := sprite.Bounds().Dx()
+			height := sprite.Bounds().Dy()
+
+			op := ebiten.DrawImageOptions{}
+
+			op.GeoM.Translate(-float64(width)/2, -float64(height)/2)
+			op.GeoM.Rotate(bullet.Rotation + math.Pi*.5)
+			op.GeoM.Translate(float64(width)/2, float64(height)/2)
+
+			op.GeoM.Translate(bullet.Position.X, bullet.Position.Y)
+			op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
+
+			screen.DrawImage(sprite, &op)
+		}
+		g.Client.bullets_mutex.RUnlock()
+
 	}
-	g.Client.player_states_mutex.RUnlock()
-
-	g.Client.bullets_mutex.RLock()
-	for _, bullet := range g.Client.bullets {
-		sprite := GetBulletSprite(bullet.WeaponType)
-
-		width := sprite.Bounds().Dx()
-		height := sprite.Bounds().Dy()
-
-		op := ebiten.DrawImageOptions{}
-
-		op.GeoM.Translate(-float64(width)/2, -float64(height)/2)
-		op.GeoM.Rotate(bullet.Rotation + math.Pi*.5)
-		op.GeoM.Translate(float64(width)/2, float64(height)/2)
-
-		op.GeoM.Translate(bullet.Position.X, bullet.Position.Y)
-		op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
-
-		screen.DrawImage(sprite, &op)
-	}
-
-	for _, bullet := range g.Debris {
-		sprite := GetBulletSprite(bullet.WeaponType)
-
-		width := sprite.Bounds().Dx()
-		height := sprite.Bounds().Dy()
-
-		op := ebiten.DrawImageOptions{}
-
-		op.GeoM.Translate(-float64(width)/2, -float64(height)/2)
-		op.GeoM.Rotate(bullet.Rotation + math.Pi*.5)
-		op.GeoM.Translate(float64(width)/2, float64(height)/2)
-
-		op.GeoM.Translate(bullet.Position.X, bullet.Position.Y)
-		op.GeoM.Translate(-g.Camera.Offset.X, -g.Camera.Offset.Y)
-
-		screen.DrawImage(sprite, &op)
-	}
-	g.Client.bullets_mutex.RUnlock()
-
 	for _, boon := range g.Boons {
 		boon.Draw(screen, &g.Camera)
 	}
@@ -439,7 +492,55 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		op.GeoM.Translate(-float64(len(levelString)/2)*fontSize, -fontSize/2)
 		text.Draw(screen, levelString, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &op)
 	}
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d\t%d", g.Client.readyPlayersCount, g.Client.playerCount, g.Player.Life))
+
+	if g.Client != nil{
+		ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d\t%d", g.Client.readyPlayersCount, g.Client.playerCount, g.Player.Life))
+	}
+
+	if g.Level.HostSmith != nil {
+		op := g.Camera.GetCameraDrawOptions()
+		op.GeoM.Translate(g.Level.HostSmith.X, g.Level.HostSmith.Y)
+		screen.DrawImage(HOSTSMITHSPRITE, op)
+
+		pos := Position{g.Level.HostSmith.X, g.Level.HostSmith.Y }
+		distance := pos.Distance(g.Player.Position)
+
+		if distance < BOON_INTERACT_RANGE {
+			textOp := text.DrawOptions{}
+			textOp.GeoM = op.GeoM
+			fontSize := 8.
+			msg := "press 'e' to host"
+			textOp.GeoM.Translate(-float64(len(msg)/2)*fontSize, -fontSize)
+			text.Draw(screen, msg, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
+		}
+	}
+
+	if g.Level.JoinWizard != nil {
+		op := g.Camera.GetCameraDrawOptions()
+		op.GeoM.Translate(g.Level.JoinWizard.X, g.Level.JoinWizard.Y)
+		screen.DrawImage(JOINWIZARDSPRITE, op)
+
+		pos := Position{g.Level.JoinWizard.X, g.Level.JoinWizard.Y }
+		distance := pos.Distance(g.Player.Position)
+
+		if distance < BOON_INTERACT_RANGE {
+			textOp := text.DrawOptions{}
+			textOp.GeoM = op.GeoM
+			fontSize := 8.
+			msg := "press 'e' to type join code"
+			if g.isTypingJoinCode {
+				msg = "'enter' to confirm"
+			}
+			textOp.GeoM.Translate(-float64(len(msg)/2)*fontSize, -fontSize)
+			text.Draw(screen, msg, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
+		}
+	}
+
+	textOp := text.DrawOptions{}
+	textOp.GeoM.Translate(SCREEN_WIDTH / 2, 0)
+	fontSize := 16.
+	textOp.GeoM.Translate(-float64(len(g.BigTextBuff)/2)*fontSize, fontSize)
+	text.Draw(screen, g.BigTextBuff, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -509,6 +610,7 @@ func (g *Game) HandleEvent() {
 				g.ChangeLevel(event_data.Level)
 				g.TransitionState = TransitionStateEnding
 				g.LevelCount++
+				g.BigTextBuff = ""
 			case SpawnEnemiesEvent:
 				g.Enemies = append(g.Enemies, event_data.Enemies...)
 			case SpawnBoonEvent:
@@ -525,10 +627,58 @@ func (g *Game) HandleEvent() {
 	}
 }
 
+func (g* Game) Host() {
+	LoadLevel(g.Level, LobbyLevel)
+	server := Server{level: g.Level}
+	g.Server = &server
+
+	client := Client{}
+	client.Modifiers = &g.Modifiers
+	client.PlayerLifePtr = &g.Player.Life
+
+	g.Player.Position = Position{g.Level.Spawn.X, g.Level.Spawn.Y}
+
+	g.Client = &client
+
+	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+	result := make([]byte, 4)
+    for i := range result {
+        result[i] = letters[rand.Intn(len(letters))]
+    }
+
+	key := fmt.Sprintf("gmtk2024:%s", result)
+	g.BigTextBuff = string(result)
+	go server.Host("84.215.22.166", key)
+	go client.RunLocalClient()
+}
+
+func (g* Game) Join() {
+	client := Client{}
+	client.Modifiers = &g.Modifiers
+	client.PlayerLifePtr = &g.Player.Life
+
+	g.Client = &client
+	go client.RunClient("84.215.22.166", fmt.Sprintf("gmtk2024:%s", g.JoinKey)) // this should be some buffer
+
+
+	g.JoinKey = ""
+	g.BigTextBuff = "connecting..."
+	if !g.Client.CheckConnected() {
+		g.BigTextBuff = "failed to connect"
+		g.Client = nil
+		return
+	} else {
+		g.BigTextBuff = ""
+		LoadLevel(g.Level, LobbyLevel)
+
+		g.Player.Position = Position{g.Level.Spawn.X, g.Level.Spawn.Y}
+	}
+}
+
 func main() {
 	is_server := flag.String("server", "y", "run server")
 	is_host := flag.String("host", "n", "host")
-	server_ip := flag.String("ip", "84.215.22.166", "ip")
 
 	flag.Parse()
 
@@ -537,8 +687,7 @@ func main() {
 		return
 	}
 
-	level := Level{}
-	LoadLevel(&level, LobbyLevel)
+	level := LoadPregameLevel()
 
 	ebiten.SetWindowSize(RENDER_WIDTH, RENDER_HEIGHT)
 	ebiten.SetWindowTitle("Hello, World!")
@@ -555,17 +704,6 @@ func main() {
 
 	fontFaceSource = s
 
-	client := Client{}
-	var server Server
-	if *is_host == "n" {
-		go client.RunClient(*server_ip)
-
-	} else {
-		server = Server{level: &level}
-		go server.Host(*server_ip)
-		go client.RunLocalClient()
-	}
-
 	InitializeWeapons()
 	InitializeCharacters()
 
@@ -580,9 +718,11 @@ func main() {
 			Weapon:    WeaponBow,
 			Life:      PLAYER_LIFE,
 		},
-		Client: &client,
 		Level:  &level,
-		Server: &server,
+	}
+
+	if *is_host == "y" {
+		game.Host()
 	}
 
 	if game.Level.Spawn != nil {

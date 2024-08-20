@@ -27,8 +27,8 @@ type Client struct {
 	readyPlayersCount   uint
 	playerCount         uint
 	ServerState         ServerState
-	PendingDamageTaken  int
-	Modifiers           Modifiers
+	PlayerLifePtr       *int
+	Modifiers           *Modifiers
 
 	ID uint
 }
@@ -315,7 +315,8 @@ func (c *Client) HandlePacket() {
 			err := dec.Decode(&hitInfo)
 
 			if c.IsSelf(hitInfo.Player.Addr) {
-				c.PendingDamageTaken = hitInfo.Damage
+				// double check this
+				*c.PlayerLifePtr -= hitInfo.Damage
 			}
 
 			if err != nil {
@@ -376,7 +377,7 @@ func (c *Client) HandlePacket() {
 			c.HandleServerState(c.ServerState)
 
 		case PacketTypeModifiersUpdated:
-			_ = dec.Decode(&c.Modifiers)
+			_ = dec.Decode(c.Modifiers)
 
 		case PacketTypeServerEvent:
 			var event Event
@@ -400,7 +401,20 @@ func (c *Client) HandlePacket() {
 	}
 }
 
-func (c *Client) RunClient(server_ip string) {
+func (c *Client) CheckConnected() bool {
+	endTime := time.Now().Add(time.Second * 2)
+	for {
+		if time.Now().After(endTime) {
+			return false
+		}
+
+		if c.is_connected {
+			return true
+		}
+	}
+}
+
+func (c *Client) RunClient(server_ip string, key string) {
 	conn, err := net.ListenUDP("udp", nil)
 	c.conn = conn
 	if err != nil {
@@ -409,7 +423,7 @@ func (c *Client) RunClient(server_ip string) {
 	}
 	defer conn.Close()
 
-	data := ReconcilliationData{"Hello, server!"}
+	data := ReconcilliationData{key}
 
 	packet := Packet{}
 	packet.PacketType = PacketTypeMatchFind

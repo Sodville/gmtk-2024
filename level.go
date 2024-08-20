@@ -26,7 +26,11 @@ type Level struct {
 	Spawn          *tiled.Object
 	BoonSpawns     []Position
 	ObstacleMatrix [][]bool
+	HostSmith      *tiled.Object
+	JoinWizard     *tiled.Object
 }
+
+var PregameLevel Level
 
 func (l *Level) CheckObjectCollision(position Position) *tiled.Object {
 	for _, object := range l.Collisions {
@@ -63,6 +67,8 @@ func (l *Level) generateObstacleMatrix() [][]bool {
 }
 
 func LoadLevel(level *Level, levelType LevelEnum) {
+	level.JoinWizard = nil
+	level.HostSmith = nil
 	var gameMap *tiled.Map
 	switch levelType {
 	case LobbyLevel:
@@ -136,4 +142,60 @@ func LoadLevel(level *Level, levelType LevelEnum) {
 	if levelType != LobbyLevel && len(level.BoonSpawns) < 2 {
 		panic("2 boon spawns are REQUIRED")
 	}
+}
+
+func LoadPregameLevel() Level {
+	level := Level{}
+	gameMap, err := tiled.LoadFile("assets/Tiled/pregame_level.tmx")
+	if err != nil {
+		panic(err)
+	}
+	level.Map = gameMap
+
+	mapRenderer, err := render.NewRenderer(gameMap)
+
+	if err != nil {
+		panic(err)
+	}
+
+	// render it to an in memory image
+	err = mapRenderer.RenderVisibleLayers()
+
+	if err != nil {
+		panic(err)
+	}
+
+	var buff []byte
+	buffer := bytes.NewBuffer(buff)
+
+	mapRenderer.SaveAsPng(buffer)
+
+	im, err := png.Decode(buffer)
+
+	level.MapImage = ebiten.NewImageFromImage(im)
+
+	for _, object_group := range level.Map.ObjectGroups {
+		if object_group.Name == "Collision" {
+			level.Collisions = object_group.Objects
+		}
+	}
+
+	level.ObstacleMatrix = level.generateObstacleMatrix()
+
+	for _, object_group := range level.Map.ObjectGroups {
+		if object_group.Name == "Misc" {
+			for _, object := range object_group.Objects {
+				switch object.Name{
+				case "player_spawn":
+					level.Spawn = object
+				case "join_wizard":
+					level.JoinWizard = object
+				case "host_smith":
+					level.HostSmith = object
+				}
+			}
+		}
+	}
+
+	return level
 }
