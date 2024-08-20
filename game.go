@@ -677,7 +677,7 @@ func (g* Game) Join() {
 }
 
 func main() {
-	is_server := flag.String("server", "y", "run server")
+	is_server := flag.String("server", "n", "run server")
 	is_host := flag.String("host", "n", "host")
 
 	flag.Parse()
