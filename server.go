@@ -677,7 +677,7 @@ func (s *Server) Host(mediation_server_ip string, key string) {
 				}
 
 			case PacketTypeClientToggleReady:
-				if s.started {
+				if s.started && (s.State.State != ServerStateWaitingRoom || s.State.State != ServerStateStarting) {
 					continue
 				}
 				player, ok := loadFromSyncMap[ConnectedPlayer](packet_data.Addr.String(), &s.connections)
