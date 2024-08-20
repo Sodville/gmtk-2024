@@ -83,6 +83,7 @@ type Game struct {
 	event_handler_running bool
 	isTypingJoinCode      bool
 	ShouldCleanEnemies    bool
+	isInWaitingRoom       bool
 }
 
 func (g *Game) Update() error {
@@ -395,6 +396,25 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	if g.Client != nil {
+		if (g.isInWaitingRoom ) {
+			if !g.Client.IsReady() {
+				textOp := text.DrawOptions{}
+				msg := "press 'r' to ready"
+				fontSize := 12.
+				textOp.GeoM.Translate(SCREEN_WIDTH / 2, SCREEN_HEIGHT - fontSize * 4)
+				textOp.GeoM.Translate(-float64(len(msg)/2)*fontSize, fontSize)
+				text.Draw(screen, msg, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
+
+			}
+
+			textOp := text.DrawOptions{}
+			msg := fmt.Sprintf("READY: %d/%d", g.Client.readyPlayersCount, g.Client.playerCount,)
+			fontSize := 12.
+			textOp.GeoM.Translate(SCREEN_WIDTH / 2, SCREEN_HEIGHT - fontSize * 3)
+			textOp.GeoM.Translate(-float64(len(msg)/2)*fontSize, fontSize)
+			text.Draw(screen, msg, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
+		}
+
 		g.Client.player_states_mutex.RLock()
 		for _, state := range g.Client.player_states {
 			if g.Client.IsSelf(state.Connection.Addr) {
@@ -505,10 +525,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		op.GeoM.Translate(-float64(len(levelString)/2)*fontSize, -fontSize/2)
 		text.Draw(screen, levelString, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &op)
-	}
-
-	if g.Client != nil{
-		ebitenutil.DebugPrint(screen, fmt.Sprintf("READY: %d/%d\t%d", g.Client.readyPlayersCount, g.Client.playerCount, g.Player.Life))
 	}
 
 	if g.Level.HostSmith != nil {
@@ -628,6 +644,11 @@ func (g *Game) HandleEvent() {
 				g.Boons = []Boon{}
 
 				g.LevelCount++
+				g.isInWaitingRoom = false
+				if event_data.Level == LobbyLevel {
+					g.LevelCount = 0
+					g.isInWaitingRoom = true
+				}
 				g.BigTextBuff = ""
 			case SpawnEnemiesEvent:
 				g.Enemies = append(g.Enemies, event_data.Enemies...)
@@ -642,7 +663,6 @@ func (g *Game) HandleEvent() {
 				g.StartLevelTransition()
 				// maybe make them do the cool
 			case GameOverEvent:
-				g.LevelCount = -1
 				g.BigTextBuff = "GAME OVER"
 			}
 		}
@@ -673,6 +693,9 @@ func (g* Game) Host() {
 	g.BigTextBuff = string(result)
 	go server.Host("84.215.22.166", key)
 	go client.RunLocalClient()
+
+	g.isInWaitingRoom = true
+
 }
 
 func (g* Game) Join() {
@@ -693,6 +716,7 @@ func (g* Game) Join() {
 	} else {
 		g.BigTextBuff = ""
 		LoadLevel(g.Level, LobbyLevel)
+		g.isInWaitingRoom = true
 
 		g.Player.Position = Position{g.Level.Spawn.X, g.Level.Spawn.Y}
 	}
