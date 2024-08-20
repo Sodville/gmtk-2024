@@ -58,21 +58,22 @@ type Transition struct {
 }
 
 type Game struct {
-	Player     Player
-	Client     *Client
-	Server     *Server
-	FrameCount uint64
-	Level      *Level
-	Camera     Camera
-	Sparks     []Spark
-	Enemies    []Enemy
-	Debris     []Bullet
-	Boons      []Boon
-	Tombs      []Position
-	LevelCount int
-	Modifiers  Modifiers
-	JoinKey    string
+	Player      Player
+	Client      *Client
+	Server      *Server
+	FrameCount  uint64
+	Level       *Level
+	Camera      Camera
+	Sparks      []Spark
+	Enemies     []Enemy
+	Debris      []Bullet
+	Boons       []Boon
+	Tombs       []Position
+	LevelCount  int
+	Modifiers   Modifiers
+	JoinKey     string
 	BigTextBuff string
+	Healthbar   *Healthbar
 
 	Transitions     []Transition
 	TransitionState TransitionState
@@ -92,7 +93,7 @@ func (g *Game) Update() error {
 		g.Server.Update()
 	}
 
-	if g.event_handler_running == false && g.Client != nil{
+	if g.event_handler_running == false && g.Client != nil {
 		go g.HandleEvent()
 	}
 
@@ -162,7 +163,6 @@ func (g *Game) Update() error {
 
 		g.Player.Update(g)
 
-
 		if ebiten.IsKeyPressed(ebiten.KeyE) && g.toggleCooldown == 0 && g.Client != nil {
 			g.toggleCooldown = TOGGLECOOLDOWN
 			for _, boon := range g.Boons {
@@ -190,7 +190,6 @@ func (g *Game) Update() error {
 
 	rotation := CalculateOrientationRads(g.Camera, g.Player.GetCenter())
 	g.Player.Rotation = rotation
-
 
 	if g.Client != nil {
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButton0) && g.Player.ShootCooldown == 0 && g.Player.RollDuration == 0 && !g.Player.IsGhost() && g.Client != nil {
@@ -323,7 +322,6 @@ func (g *Game) Update() error {
 		g.Client.player_states = states
 		g.Client.player_states_mutex.Unlock()
 
-
 	}
 	sparks := []Spark{}
 	for key := range g.Sparks {
@@ -354,7 +352,7 @@ func (g *Game) Update() error {
 	g.Enemies = enemies
 
 	if g.Level.HostSmith != nil {
-		pos := Position{g.Level.HostSmith.X, g.Level.HostSmith.Y }
+		pos := Position{g.Level.HostSmith.X, g.Level.HostSmith.Y}
 		distance := pos.Distance(g.Player.Position)
 
 		if distance < BOON_INTERACT_RANGE && ebiten.IsKeyPressed(ebiten.KeyE) && g.Server == nil && g.toggleCooldown == 0 {
@@ -364,7 +362,7 @@ func (g *Game) Update() error {
 	}
 
 	if g.Level.JoinWizard != nil {
-		pos := Position{g.Level.JoinWizard.X, g.Level.JoinWizard.Y }
+		pos := Position{g.Level.JoinWizard.X, g.Level.JoinWizard.Y}
 		distance := pos.Distance(g.Player.Position)
 
 		if distance < BOON_INTERACT_RANGE && ebiten.IsKeyPressed(ebiten.KeyE) && g.Server == nil && g.toggleCooldown == 0 {
@@ -395,21 +393,21 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	if g.Client != nil {
-		if (g.isInWaitingRoom ) {
+		if g.isInWaitingRoom {
 			if !g.Client.IsReady() {
 				textOp := text.DrawOptions{}
 				msg := "press 'r' to ready"
 				fontSize := 12.
-				textOp.GeoM.Translate(SCREEN_WIDTH / 2, SCREEN_HEIGHT - fontSize * 4)
+				textOp.GeoM.Translate(SCREEN_WIDTH/2, SCREEN_HEIGHT-fontSize*4)
 				textOp.GeoM.Translate(-float64(len(msg)/2)*fontSize, fontSize)
 				text.Draw(screen, msg, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
 
 			}
 
 			textOp := text.DrawOptions{}
-			msg := fmt.Sprintf("READY: %d/%d", g.Client.readyPlayersCount, g.Client.playerCount,)
+			msg := fmt.Sprintf("READY: %d/%d", g.Client.readyPlayersCount, g.Client.playerCount)
 			fontSize := 12.
-			textOp.GeoM.Translate(SCREEN_WIDTH / 2, SCREEN_HEIGHT - fontSize * 3)
+			textOp.GeoM.Translate(SCREEN_WIDTH/2, SCREEN_HEIGHT-fontSize*3)
 			textOp.GeoM.Translate(-float64(len(msg)/2)*fontSize, fontSize)
 			text.Draw(screen, msg, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
 		}
@@ -531,7 +529,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		op.GeoM.Translate(g.Level.HostSmith.X, g.Level.HostSmith.Y)
 		screen.DrawImage(HOSTSMITHSPRITE, op)
 
-		pos := Position{g.Level.HostSmith.X, g.Level.HostSmith.Y }
+		pos := Position{g.Level.HostSmith.X, g.Level.HostSmith.Y}
 		distance := pos.Distance(g.Player.Position)
 
 		if distance < BOON_INTERACT_RANGE {
@@ -549,7 +547,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		op.GeoM.Translate(g.Level.JoinWizard.X, g.Level.JoinWizard.Y)
 		screen.DrawImage(JOINWIZARDSPRITE, op)
 
-		pos := Position{g.Level.JoinWizard.X, g.Level.JoinWizard.Y }
+		pos := Position{g.Level.JoinWizard.X, g.Level.JoinWizard.Y}
 		distance := pos.Distance(g.Player.Position)
 
 		if distance < BOON_INTERACT_RANGE {
@@ -566,10 +564,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	textOp := text.DrawOptions{}
-	textOp.GeoM.Translate(SCREEN_WIDTH / 2, 0)
+	textOp.GeoM.Translate(SCREEN_WIDTH/2, 0)
 	fontSize := 16.
-	textOp.GeoM.Translate(-float64(len(g.BigTextBuff)/2)*fontSize, fontSize)
+	textOp.GeoM.Translate(-float64(len(g.BigTextBuff)/2)*fontSize, fontSize+25)
 	text.Draw(screen, g.BigTextBuff, &text.GoTextFace{Source: fontFaceSource, Size: fontSize}, &textOp)
+
+	g.Healthbar.Draw(screen)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -649,6 +649,9 @@ func (g *Game) HandleEvent() {
 					g.isInWaitingRoom = true
 				}
 				g.BigTextBuff = ""
+				l := g.Modifiers.GetModifiedPlayerValue(ModifierTypeLife)
+				g.Player.Life = int(l * PLAYER_LIFE)
+				g.Healthbar.MaxLife = g.Player.Life
 			case SpawnEnemiesEvent:
 				g.Enemies = append(g.Enemies, event_data.Enemies...)
 			case PlayerDiedEvent:
@@ -668,7 +671,7 @@ func (g *Game) HandleEvent() {
 	}
 }
 
-func (g* Game) Host() {
+func (g *Game) Host() {
 	LoadLevel(g.Level, LobbyLevel)
 	server := Server{level: g.Level}
 	g.Server = &server
@@ -684,9 +687,9 @@ func (g* Game) Host() {
 	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 	result := make([]byte, 4)
-    for i := range result {
-        result[i] = letters[rand.Intn(len(letters))]
-    }
+	for i := range result {
+		result[i] = letters[rand.Intn(len(letters))]
+	}
 
 	key := fmt.Sprintf("gmtk2024:%s", result)
 	g.BigTextBuff = string(result)
@@ -697,14 +700,13 @@ func (g* Game) Host() {
 
 }
 
-func (g* Game) Join() {
+func (g *Game) Join() {
 	client := Client{}
 	client.Modifiers = &g.Modifiers
 	client.PlayerLifePtr = &g.Player.Life
 
 	g.Client = &client
 	go client.RunClient("84.215.22.166", fmt.Sprintf("gmtk2024:%s", g.JoinKey)) // this should be some buffer
-
 
 	g.JoinKey = ""
 	g.BigTextBuff = "connecting..."
@@ -763,7 +765,19 @@ func main() {
 			Weapon:    WeaponBow,
 			Life:      PLAYER_LIFE,
 		},
-		Level:  &level,
+		Level: &level,
+	}
+
+	game.Healthbar = &Healthbar{
+		MaxLife:       PLAYER_LIFE,
+		PlayerLifePtr: &game.Player.Life,
+		X:             SCREEN_WIDTH/2 - 160/2, // half of screen width minus half of bar width
+		Y:             10,
+		Width:         160,
+		Height:        10,
+		BorderWidth:   2,
+		BorderColor:   color.RGBA{0, 0, 0, 255},
+		FillColor:     color.RGBA{100, 190, 50, 255},
 	}
 
 	if *is_host == "y" {
