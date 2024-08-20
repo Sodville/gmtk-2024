@@ -111,7 +111,7 @@ func loadFromSyncMap[T any](key any, syncMap *sync.Map) (value T, ok bool) {
 			return value, false
 		}
 	} else {
-		log.Println("server tried to load non-present key from syncMap")
+		log.Println("server tried to load non-present key from syncMap, key: ",  key)
 		return value, false
 	}
 }
