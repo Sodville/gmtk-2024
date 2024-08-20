@@ -358,6 +358,10 @@ func (s *Server) StartSpawnMonsterEvent() {
 	packet.PacketType = PacketTypeServerEvent
 	s.Broadcast(packet, event)
 
+	for i := range EnemiesToSpawn {
+		s.Enemies[i].Life = int(float64(s.Enemies[i].Life) * .8)
+	}
+
 	s.Enemies = append(s.Enemies, EnemiesToSpawn...)
 	s.SpawnCooldown = s.SetSpawnCooldown()
 }
